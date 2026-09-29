@@ -1,6 +1,6 @@
 # Shared contract version 1
 
-Freeze this contract before module integration. Devananda implements and validates it; Manish coordinates changes. Do not silently rename fields.
+Freeze this contract before module integration. Implement and validate changes through coordinated, reviewed pull requests. Do not silently rename fields.
 
 ## EventBundle
 JSON metadata plus array files. schema_version="1.0"; event_id; mode=synthetic|replay|live; source records with provenance and availability; event_time_utc is the last observed timestamp; timestamps_utc is strictly increasing; observed_array_path points to an array [T,H,W,C]; channel_names and channel_units correspond to C; quality_mask_path may be null. Evaluation targets use a different file and are excluded from inference.

@@ -6,4 +6,4 @@
 - Unsupported hazards/probabilities are unavailable/null; no invented 6-hour or Indian validation claim.
 - API/frontend/model smoke checks and module checks pass; results are recorded.
 - Release includes small sample/config, download manifests, checksum, demo evidence and known limitations.
-- Manish provides an integration report; Shawn approves develop -> main.
+- The release includes an integration report and repository-owner review of develop -> main.

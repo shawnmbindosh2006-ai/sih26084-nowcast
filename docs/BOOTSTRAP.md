@@ -1,16 +1,18 @@
 # Repository bootstrap
-The leader owns https://github.com/shawnmbindosh2006-ai/sih26084-nowcast. Create an empty private repository under @shawnmbindosh2006-ai, then populate it with this starter. If GitHub already created README.md, clone that repository and copy these starter contents over it before committing; do not force push unrelated history.
+Repository: https://github.com/shawnmbindosh2006-ai/sih26084-nowcast
 
-PowerShell after extracting and cloning:
-git add .
-git commit -m "Add team assignments and prototype contracts"
-git push origin main
+The starter structure is introduced through a bootstrap pull request to main. After it is merged, update the local main branch before creating develop:
+
+```powershell
+git fetch origin
+git switch main
+git pull --ff-only origin main
 git switch -c develop
 git push -u origin develop
+```
 
-The initial main upload is a bootstrap exception performed by the leader. All later prototype work uses feature branches and PRs.
-Invite manishj2007, bluebvrrie, devanandabipin and anamikapvivekan05-ops through Settings -> Collaborators -> Add people. Acceptance is required before private access works. Check actual usernames and account matches. Do not give co-owner/admin status or share login credentials.
+If develop already exists, switch to it and pull with --ff-only instead of recreating it. Create module feature branches from the latest develop and submit feature pull requests to develop. Release pull requests target main.
 
-Protect main where the plan supports enforcement: require PRs, one approving review, Code Owner approval, stale approval dismissal, resolved conversations and no force push/deletion. Keep owner-only CODEOWNERS on main. Configure develop without owner-only Code Owner enforcement so Manish can coordinate independently. Require smoke checks only after a real application CI job exists and has run successfully. Do not require a nonexistent check. GitHub Free private restrictions are described in CONTRIBUTING.md.
+Require peer review and owner review for main releases. Configure branch protection when the repository plan supports enforcement; CODEOWNERS alone does not block unreviewed merges. Require CI checks only after those jobs exist and have run successfully. Do not force-push shared branches or change access or visibility without explicit authorization.
 
-No application is implemented by this starter. Manish supplies working launch scripts and an integrated release.
+This starter contains interfaces, documentation and illustrative metadata. It does not implement a runnable application. Launch scripts, dependency locks and an integrated demonstration are subsequent deliverables.
