@@ -79,9 +79,12 @@ try {
         while (-not $api.HasExited -and -not $dashboard.HasExited) { Start-Sleep -Seconds 1 }
         throw "A demo process exited; inspect $logs"
     } finally {
+        $taskkill = Join-Path $env:SystemRoot 'System32\taskkill.exe'
         foreach ($process in @($dashboard, $api)) {
             if ($null -ne $process -and -not $process.HasExited) {
-                Stop-Process -Id $process.Id -ErrorAction SilentlyContinue
+                # npm.cmd and the virtual-environment shim both spawn child
+                # processes on Windows, so terminate the whole recorded tree.
+                & $taskkill /PID $process.Id /T /F *> $null
             }
         }
     }

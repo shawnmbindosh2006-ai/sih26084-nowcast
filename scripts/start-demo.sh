@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Keep this launcher LF-terminated; .gitattributes enforces that on Windows.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
