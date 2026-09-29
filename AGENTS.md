@@ -1,0 +1,5 @@
+# Project instructions
+Project leader @shawnmbindosh2006-ai; coordinator @manishj2007. Read docs/TEAM.md and docs/CONTRACT.md. Only four assigned contributors build the prototype; leader handles pitch and oversight.
+Work in your assigned paths on your own feature branch from develop. Do not overwrite others' uncommitted work. Coordinate shared interfaces and dependency changes through Manish. Never merge into main, publish a release, add paid compute, expose secrets or change scientific claims without leader approval.
+Use a reproducible fixture first. No fabricated weather data, probabilities, geolocation, live status or unsupported forecast horizon. Synthetic/replay/baseline/model modes must be distinct. VIL is not rainfall in mm/h. Indian transfer and hazard skill require actual validation.
+Commit meaningful checkpoints; push and open a PR only when GitHub access exists. Do not claim remote actions succeeded without verification. Every handoff includes exact command, data/checkpoint provenance, evidence, tests and limitations. Record blockers in docs/status/ and report to Manish. Do not implement another teammate's module except in an agreed integration fix.
