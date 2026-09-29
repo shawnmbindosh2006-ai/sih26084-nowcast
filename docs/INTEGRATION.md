@@ -12,6 +12,14 @@ strictly increasing, `event_time_utc` must equal the last timestamp, and channel
 name/unit counts must equal `C`. A supplied quality mask must match `[T,H,W]`,
 `[T,H,W,1]`, or `[T,H,W,C]`.
 
+The quality mask must be boolean: `True` means valid. The last observed mask
+is broadcast across channels when needed. Invalid pixels are written as `NaN`
+in each forecast `.npy` frame; a genuine valid zero stays zero. Masked output
+therefore uses a floating dtype even when the input array is integral.
+Consumers must treat nonfinite pixels as missing when rendering or computing
+metrics. The current evaluation helper rejects nonfinite arrays; callers must
+exclude missing pixels explicitly before scoring them.
+
 Evaluation targets are deliberately outside the prediction interface. Unknown
 fields such as `evaluation_target_array_path` are not opened or inspected.
 

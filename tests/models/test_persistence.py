@@ -87,6 +87,11 @@ class PersistenceNowcasterTests(unittest.TestCase):
         np.save(target_path, np.full((2, 2, 2, 2), 9999, dtype=np.float32))
         event = copy.deepcopy(self.event)
         event["evaluation_target_array_path"] = str(target_path)
+        mask = np.ones(self.observed.shape, dtype=bool)
+        mask[-1, 0, 0, 0] = False
+        mask_path = self.root / "quality-mask.npy"
+        np.save(mask_path, mask)
+        event["quality_mask_path"] = str(mask_path)
         first = self._adapter().predict(event, [30])
         target_path.unlink()
         second = self._adapter().predict(event, [30])
@@ -94,6 +99,69 @@ class PersistenceNowcasterTests(unittest.TestCase):
         first_file = self.artifact_root / first["run_id"] / first["frames"][0]["image_url"].rsplit("/", 1)[-1]
         second_file = self.artifact_root / second["run_id"] / second["frames"][0]["image_url"].rsplit("/", 1)[-1]
         np.testing.assert_array_equal(np.load(first_file), np.load(second_file))
+
+    def test_masked_pixels_are_nan_and_valid_zeros_remain_zero(self) -> None:
+        observed = self.observed.copy()
+        observed[-1, 1, 1, 0] = 0
+        np.save(self.observed_path, observed)
+        mask = np.ones(observed.shape, dtype=bool)
+        mask[-1, 0, 0, 0] = False
+        mask[-1, 0, 1, 1] = False
+        mask_path = self.root / "quality-mask.npy"
+        np.save(mask_path, mask)
+        self.event["quality_mask_path"] = str(mask_path)
+
+        forecast = self._adapter().predict(self.event, [30, 60])
+
+        for frame in forecast["frames"]:
+            filename = frame["image_url"].rsplit("/", 1)[-1]
+            channel = int(filename.split("channel-")[1].split(".")[0])
+            stored = np.load(self.artifact_root / forecast["run_id"] / filename)
+            valid = mask[-1, ..., channel]
+            np.testing.assert_array_equal(stored[valid], observed[-1, ..., channel][valid])
+            self.assertTrue(np.isnan(stored[~valid]).all())
+            self.assertEqual(stored.dtype, np.float32)
+        self.assertEqual(observed[-1, 1, 1, 0], 0)
+        self.assertFalse(np.isnan(observed[-1, 1, 1, 0]))
+        self.assertTrue(any("invalid pixels are NaN" in warning for warning in forecast["warnings"]))
+
+    def test_spatial_and_singleton_channel_masks_broadcast_to_all_channels(self) -> None:
+        for shape in (self.observed.shape[:3], (*self.observed.shape[:3], 1)):
+            with self.subTest(shape=shape):
+                mask = np.ones(shape, dtype=bool)
+                mask[-1, 0, 0] = False
+                mask_path = self.root / "quality-mask.npy"
+                np.save(mask_path, mask)
+                self.event["quality_mask_path"] = str(mask_path)
+                forecast = self._adapter().predict(self.event, [30])
+                for frame in forecast["frames"]:
+                    filename = frame["image_url"].rsplit("/", 1)[-1]
+                    stored = np.load(self.artifact_root / forecast["run_id"] / filename)
+                    self.assertTrue(np.isnan(stored[0, 0]))
+
+    def test_nonboolean_mask_is_rejected(self) -> None:
+        mask_path = self.root / "quality-mask.npy"
+        np.save(mask_path, np.ones(self.observed.shape, dtype=np.uint8))
+        self.event["quality_mask_path"] = str(mask_path)
+        with self.assertRaisesRegex(EventValidationError, "mask must be boolean"):
+            self._adapter().predict(self.event, [30])
+
+    def test_masked_integer_input_can_represent_missing_pixels(self) -> None:
+        observed = self.observed.astype(np.uint8)
+        np.save(self.observed_path, observed)
+        mask = np.ones(observed.shape, dtype=bool)
+        mask[-1, 0, 0, 0] = False
+        mask_path = self.root / "quality-mask.npy"
+        np.save(mask_path, mask)
+        self.event["quality_mask_path"] = str(mask_path)
+
+        forecast = self._adapter().predict(self.event, [30])
+        filename = forecast["frames"][0]["image_url"].rsplit("/", 1)[-1]
+        stored = np.load(self.artifact_root / forecast["run_id"] / filename)
+
+        self.assertTrue(np.issubdtype(stored.dtype, np.floating))
+        self.assertTrue(np.isnan(stored[0, 0]))
+        self.assertEqual(stored[1, 1], observed[-1, 1, 1, 0])
 
     def test_metadata_only_event_is_rejected(self) -> None:
         event = copy.deepcopy(self.event)

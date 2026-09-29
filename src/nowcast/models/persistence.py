@@ -66,6 +66,7 @@ def _unavailable_hazard(name: str) -> dict[str, Any]:
 class ValidatedEvent:
     event: Mapping[str, Any]
     observed: np.ndarray
+    quality_mask: np.ndarray | None
     event_time: datetime
 
 
@@ -148,6 +149,7 @@ class PersistenceNowcaster:
         if not isinstance(sources, list):
             raise EventValidationError("sources must be an array")
 
+        quality_mask: np.ndarray | None = None
         quality_mask_path = event.get("quality_mask_path")
         if quality_mask_path is not None:
             if not isinstance(quality_mask_path, str) or not Path(quality_mask_path).is_file():
@@ -156,6 +158,8 @@ class PersistenceNowcaster:
                 quality_mask = np.load(quality_mask_path, allow_pickle=False)
             except (OSError, ValueError) as exc:
                 raise EventValidationError("quality mask could not be loaded") from exc
+            if not isinstance(quality_mask, np.ndarray) or quality_mask.dtype != np.bool_:
+                raise EventValidationError("quality mask must be boolean; True means valid")
             if quality_mask.shape not in {
                 observed.shape[:3],
                 (*observed.shape[:3], 1),
@@ -165,7 +169,12 @@ class PersistenceNowcaster:
                     "quality mask must match [T,H,W], [T,H,W,1], or [T,H,W,C]"
                 )
 
-        return ValidatedEvent(event=event, observed=observed, event_time=event_time)
+        return ValidatedEvent(
+            event=event,
+            observed=observed,
+            quality_mask=quality_mask,
+            event_time=event_time,
+        )
 
     def _validate_lead_times(self, lead_times: Sequence[int]) -> tuple[int, ...]:
         if isinstance(lead_times, (str, bytes)):
@@ -195,6 +204,22 @@ class PersistenceNowcaster:
         run_directory.mkdir(parents=True, exist_ok=False)
 
         final_observation = np.asarray(validated.observed[-1])
+        final_valid_mask = None
+        if validated.quality_mask is not None:
+            final_valid_mask = validated.quality_mask[-1]
+            if final_valid_mask.ndim == 2:
+                final_valid_mask = final_valid_mask[..., None]
+            final_valid_mask = np.broadcast_to(final_valid_mask, final_observation.shape)
+
+        final_planes = []
+        for channel_index in range(final_observation.shape[-1]):
+            plane = final_observation[..., channel_index]
+            if final_valid_mask is not None:
+                # NaN distinguishes a missing pixel from a genuine observed zero.
+                plane = np.array(plane, dtype=np.result_type(plane.dtype, np.float32))
+                plane[~final_valid_mask[..., channel_index]] = np.nan
+            final_planes.append(plane)
+
         frames: list[dict[str, Any]] = []
         for lead_minutes in requested_leads:
             valid_time = validated.event_time + timedelta(minutes=lead_minutes)
@@ -202,7 +227,7 @@ class PersistenceNowcaster:
                 zip(event["channel_names"], event["channel_units"])
             ):
                 filename = f"lead-{lead_minutes:03d}-channel-{channel_index:02d}.npy"
-                np.save(run_directory / filename, final_observation[..., channel_index])
+                np.save(run_directory / filename, final_planes[channel_index])
                 frames.append(
                     {
                         "lead_minutes": lead_minutes,
@@ -217,6 +242,10 @@ class PersistenceNowcaster:
             "CPU persistence baseline: every forecast frame repeats the final observation.",
             "This is not learned AI inference and provides no calibrated hazard probabilities.",
         ]
+        if final_valid_mask is not None:
+            warnings.append(
+                "Quality mask applied: True is valid; invalid pixels are NaN in NumPy forecast artifacts."
+            )
         if event["mode"] == "synthetic":
             warnings.append(
                 "Synthetic output is pipeline evidence only, not weather-skill evidence."
