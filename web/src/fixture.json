@@ -1,0 +1,18 @@
+{
+  "schema_version":"ForecastBundle v1",
+  "mode":"synthetic_demo",
+  "event_time_utc":"2026-09-29T14:00:00Z",
+  "issue_time_utc":"2026-09-29T14:05:00Z",
+  "region":{"name":"Illustrative replay region","crs":"EPSG:4326","bounds_status":"unknown"},
+  "grid":{"native_km":3,"effective_km":3},
+  "provenance":{"dataset":"local synthetic fixture","claims":"Illustrative replay; not Indian validation or live observation"},
+  "replay":{"clock_utc":"2026-09-29T14:05:00Z","start_utc":"2026-09-29T14:05:00Z","end_utc":"2026-09-29T14:20:00Z"},
+  "leads":[
+    {"lead_minutes":0,"supported":true,"valid_time_utc":"2026-09-29T14:05:00Z","bounds":{},"hazards":{"hail":{"status":"unavailable","probability":null},"lightning":{"status":"unavailable","probability":null},"downburst":{"status":"unavailable","probability":null},"cloudburst":{"status":"unavailable","probability":null}},"vil_proxy":{"value":42,"method":"Synthetic VIL proxy; not rainfall rate"},"input":{"quality":"fixture","quality_method":"Synthetic input; no calibrated confidence"}},
+    {"lead_minutes":30,"supported":true,"valid_time_utc":"2026-09-29T14:35:00Z","bounds":{},"hazards":{"hail":{"status":"unavailable","probability":null},"lightning":{"status":"unavailable","probability":null},"downburst":{"status":"unavailable","probability":null},"cloudburst":{"status":"unavailable","probability":null}},"vil_proxy":{"value":55,"method":"Synthetic VIL proxy; not rainfall rate"},"input":{"quality":"fixture","quality_method":"Synthetic input; no calibrated confidence"}},
+    {"lead_minutes":60,"supported":true,"valid_time_utc":"2026-09-29T15:05:00Z","bounds":{},"hazards":{"hail":{"status":"unavailable","probability":null},"lightning":{"status":"unavailable","probability":null},"downburst":{"status":"unavailable","probability":null},"cloudburst":{"status":"unavailable","probability":null}},"vil_proxy":{"value":61,"method":"Synthetic VIL proxy; not rainfall rate"},"input":{"quality":"fixture","quality_method":"Synthetic input; no calibrated confidence"}},
+    {"lead_minutes":90,"supported":false,"unsupported_reason":"No validated +90 minute forecast in current MVP","valid_time_utc":null,"bounds":{},"hazards":{"hail":{"status":"unavailable","probability":null},"lightning":{"status":"unavailable","probability":null},"downburst":{"status":"unavailable","probability":null},"cloudburst":{"status":"unavailable","probability":null}},"vil_proxy":{"value":null,"method":"Unavailable"},"input":{"quality":"unavailable","quality_method":"No forecast frame"}},
+    {"lead_minutes":180,"supported":false,"unsupported_reason":"3-hour forecast not validated in current MVP","valid_time_utc":null,"bounds":{},"hazards":{"hail":{"status":"unavailable","probability":null},"lightning":{"status":"unavailable","probability":null},"downburst":{"status":"unavailable","probability":null},"cloudburst":{"status":"unavailable","probability":null}},"vil_proxy":{"value":null,"method":"Unavailable"},"input":{"quality":"unavailable","quality_method":"No forecast frame"}},
+    {"lead_minutes":360,"supported":false,"unsupported_reason":"6-hour forecast not validated in current MVP","valid_time_utc":null,"bounds":{},"hazards":{"hail":{"status":"unavailable","probability":null},"lightning":{"status":"unavailable","probability":null},"downburst":{"status":"unavailable","probability":null},"cloudburst":{"status":"unavailable","probability":null}},"vil_proxy":{"value":null,"method":"Unavailable"},"input":{"quality":"unavailable","quality_method":"No forecast frame"}}
+  ]
+}
