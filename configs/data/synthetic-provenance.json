@@ -1,0 +1,30 @@
+{
+  "generator": "nowcast.data.fixture:v1",
+  "orientation": "T,row,column,C; image view only",
+  "mask": "boolean True=valid, False=missing; no imputation",
+  "normalization": null,
+  "resampling": null,
+  "checkpoint": null,
+  "files": {
+    "evaluation-targets.npy": {
+      "sha256": "ef23464a6ab2f4a5100c6685a13f245f2baa506806cc3c6d16229703a9293085",
+      "bytes": 16512
+    },
+    "evaluation.json": {
+      "sha256": "d13c4ef76e817d8995d5f2b2f117e2b4484ac9c9c1649625aedc576cc184d7b0",
+      "bytes": 260
+    },
+    "event.json": {
+      "sha256": "176823a72a90979a140f0f6eb5352de7c37ffc07b14bba6abb224cac8db4a739",
+      "bytes": 1068
+    },
+    "observed.npy": {
+      "sha256": "ce62b73e0788abe1017e345ebfbd84f5a14e6b6d8660d09f4f0b317b6a54141b",
+      "bytes": 49280
+    },
+    "quality-mask.npy": {
+      "sha256": "6f8e63295de26e309484655c8eff2dad820cb4b01df2550552f2b3d0cac7023c",
+      "bytes": 12416
+    }
+  }
+}
