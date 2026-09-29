@@ -1,0 +1,2 @@
+# Application target: Python 3.11. Reconcile shared dependencies in Manish's PR.
+numpy==2.1.3

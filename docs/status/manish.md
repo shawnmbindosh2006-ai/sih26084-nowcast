@@ -1,27 +1,116 @@
 # Manish status
 
 Owner: @manishj2007
+
 Role: Model integration and prototype coordinator
-Branch: feature/manish-model
 
-Status: not started
-Done:
-Commit and PR:
-Run command:
-Evidence and tests:
-Blocker:
-Next step and ETA:
+Current integration branch: `fix/devananda-api-integration`
 
-## API integration takeover (2026-09-30)
+Status: persistence/model PR #2 was approved by @shawnmbindosh2006-ai at
+`669e873` and merged into `develop` at merge commit `4997022`. Backend takeover
+PR #7 preserves Devananda's fixture API history, is reconciled with that merged
+data/model baseline, and passes the full Python 3.11 baseline suite. No
+learned-model implementation is included.
 
-Branch: `fix/devananda-api-integration`, based on Devananda's `7aab5818` and intended for a reviewed PR into `develop`. This section is an integration handoff; Manish's model-branch status remains separately recorded in PR #2. No EarthFormer work is included.
+## Model/persistence checkpoint
 
-Done: kept Devananda's synthetic +15 fixture path, added an optional validated EventBundle → observed-only PersistenceNowcaster +30/+60 path, preserved model run IDs and `.npy` planes, and registered PNG previews plus numeric artifacts behind confined API URLs. Masked/NaN pixels are transparent in PNG rather than numeric zero. ForecastBundle v1 retains mode, method, sources, grid, hazards and warnings; hazards stay unavailable/null. Unknown geography stays null. See `docs/INTEGRATION.md` and `docs/LOCAL_RUN.md`.
+- Implemented contract-v1 CPU persistence forecasting for `[T,H,W,C]` arrays.
+- Added event, channel, timestamp, mask and supported-lead validation.
+- `quality_mask=True` means valid; invalid forecast pixels are `NaN`; valid
+  numeric zeros remain zero.
+- Evaluation targets remain outside prediction.
+- Added deterministic synthetic plumbing generation, model CLI and evaluation
+  utilities for MAE, RMSE, CSI, POD and FAR.
+- Forecast output remains labelled `forecast_method=persistence`.
+- +90 minutes and longer model leads are rejected; the API exposes only +30 and
+  +60 for persistence.
 
-Provenance: Harinandana PR #3's deterministic synthetic `[12,32,32,1]` `demo_intensity` fixture, 5-minute UTC cadence, `True=valid` mask and separate evaluation targets; Manish PR #2's CPU persistence adapter with no checkpoint. No real weather observations, Indian geolocation, calibrated hazard or learned-model evidence is claimed.
+Model commits and PR:
 
-Evidence: Devananda added five integration commits through `e191bbb` to PR #5 while the takeover branch was in progress; these were merged into this branch without rewriting her history. The reconciled API-only branch passed 6 tests with 2 dependency-gated integration tests skipped. An isolated combined checkout of the reconciled API + reviewed data/model branch contents passed 42 API, hazard, data and model tests on Python 3.12.14 / NumPy 2.1.3; one upstream TestClient deprecation warning remains. A local HTTP smoke call through dashboard PR #6's contract helper selected +30/+60 and fetched both PNG and NumPy artifacts with HTTP 200 before the branch reconciliation; the reconciled route/response is covered by the 42-test combined run. Commands: `python -m pytest -q tests/api tests/hazards` on this branch; after dependencies land, `python -m pytest -q tests/api tests/hazards tests/models tests/data`. Exact launch commands are in `docs/LOCAL_RUN.md`.
+- Initial implementation: `2227f39`.
+- Mask behavior: `5659068`.
+- Reviewed head: `669e873`.
+- PR #2: https://github.com/shawnmbindosh2006-ai/sih26084-nowcast/pull/2
+- Merged to `develop`: `4997022`.
 
-Blocker: this API-only PR depends on unmerged model PR #2 and data PR #3. The persistence route returns 503 if configured without those modules; the fixture route remains usable. Merge sequencing and review are required, not automatic. Python 3.11 target-runtime verification and real-source scientific validation remain outstanding.
+Prior verified evidence:
 
-Next step: peer review this API integration PR and merge dependencies in a coordinated order, then rerun the full suite and dashboard smoke on the combined `develop` branch. No ETA for real-data or learned-model skill is asserted.
+- Python 3.11.9 / NumPy 2.1.3: 16/16 model/evaluation tests passed.
+- Combined data + model checkout: 22/22 data and 16/16 model/evaluation tests
+  passed.
+- Independent Python 3.12 review: 38/38 combined tests passed.
+- Harinandana's synthetic fixture produced `NaN` at the invalid final pixel for
+  +30 and +60 while preserving all valid zeros.
+
+## Data/model handshake
+
+- Data PR #3 is merged into `develop` at `398e008`.
+- Generated observation: `float32 [12,32,32,1]`, `demo_intensity` in
+  `arbitrary_demo_units`, five-minute strictly increasing UTC cadence.
+- Boolean quality mask: `[12,32,32,1]`, `True=valid`.
+- Spacing, CRS and bounds are null and remain unknown.
+- Four synthetic future frames are stored separately in
+  `evaluation-targets.npy` and referenced only from evaluation metadata.
+- A traced +30/+60 prediction opened only the observed array and quality mask.
+
+## API integration takeover
+
+Devananda's original fixture API commits and her five integration commits
+through `e191bbb` remain in PR #7 history. Manish's takeover adds:
+
+- optional validated EventBundle → observed-only persistence +30/+60;
+- stable persistence run IDs;
+- preserved numeric `.npy` forecast planes;
+- PNG previews with transparent invalid pixels;
+- API-served artifact URLs with path confinement;
+- ForecastBundle v1 fields, unavailable/null hazards and null geography;
+- separate synthetic +15 `forecast_method=fixture` behavior.
+
+Takeover commits before develop reconciliation:
+
+- `284766d` — integrate observed-only persistence nowcasts into API.
+- `256697b` — reconcile Devananda API integration without rewriting history.
+
+Prior API evidence:
+
+- API-only branch: 6 tests passed, 2 dependency-gated integration tests skipped.
+- Isolated combined data/model/API checkout: 42 tests passed on Python 3.12.14
+  / NumPy 2.1.3.
+- Local HTTP/dashboard-contract smoke fetched +30/+60 PNG and NumPy artifacts
+  with HTTP 200.
+
+## Scientific limits
+
+- Persistence is not learned inference or evidence of weather skill.
+- Synthetic fixtures are not observations.
+- No Indian transfer, calibrated hazard probability, invented geography,
+  rainfall-rate conversion or six-hour skill is claimed.
+- EarthFormer, pySTEPS, LDCast, NWP blending and multimodal research remain out
+  of scope for the baseline integration.
+
+## Reconciled Python 3.11 validation (2026-09-30)
+
+Environment: Python 3.11.9, NumPy 2.1.3, FastAPI 0.139.2, pytest 8.4.2 on
+Windows. Exact results:
+
+- `pytest -q tests/data`: 22 passed.
+- `pytest -q tests/models tests/evaluation`: 16 passed.
+- `pytest -q tests/api/test_api.py`: 6 passed, 1 warning.
+- `pytest -q tests/hazards`: 1 passed.
+- `pytest -q tests/api/test_persistence_integration.py`: 2 passed, 1 warning.
+- Combined suite: 47 passed, 1 warning.
+
+The warning is the existing Starlette/httpx TestClient deprecation notice. No
+dependency-gated integration test skipped.
+
+An actual local Uvicorn HTTP smoke verified all six contract routes, persistence
++30/+60, saved-bundle retrieval, and HTTP 200 for both PNG and NumPy artifacts.
++90/+180/+360 each returned 422. The returned bundle kept null CRS/bounds,
+`forecast_method=persistence`, unavailable/null hazards and API-relative URLs.
+Integration tests verified target-file absence during inference, NaN in `.npy`,
+transparent invalid PNG pixels, opaque valid-zero pixels and traversal rejection.
+
+## Current next step
+
+Request peer review of PR #7. It is technically ready for merge consideration
+after that review, but must not be merged automatically.

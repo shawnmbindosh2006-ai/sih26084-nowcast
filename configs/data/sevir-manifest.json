@@ -1,0 +1,49 @@
+{
+  "source": "https://registry.opendata.aws/sevir/",
+  "utilities": "https://github.com/MIT-AI-Accelerator/eie-sevir",
+  "terms": "AWS registry states no restrictions on use of this data",
+  "event_id": "S858968",
+  "budget_bytes": 1000000000,
+  "catalog": {
+    "url": "https://sevir.s3.us-west-2.amazonaws.com/CATALOG.csv",
+    "head_bytes": 33838047,
+    "bytes": 33838047,
+    "sha256": "3209386cde96ffa80ccec3c1919090ffc601333cc651116f9fc48f224a5c2f57"
+  },
+  "objects": [
+    {
+      "event_id": "S858968",
+      "key": "data/vil/2019/SEVIR_VIL_STORMEVENTS_2019_0701_1231.h5",
+      "url": "https://sevir.s3.us-west-2.amazonaws.com/data/vil/2019/SEVIR_VIL_STORMEVENTS_2019_0701_1231.h5",
+      "catalog_row": {
+        "id": "S858968",
+        "file_name": "vil/2019/SEVIR_VIL_STORMEVENTS_2019_0701_1231.h5",
+        "file_index": "421",
+        "img_type": "vil",
+        "time_utc": "2019-09-17 19:54:00",
+        "minute_offsets": "-119:-114:-109:-104:-99:-94:-89:-84:-79:-74:-69:-64:-59:-54:-49:-44:-39:-34:-29:-24:-19:-14:-9:-4:1:6:11:16:21:26:31:36:41:46:51:56:61:66:71:76:81:86:91:96:101:106:111:116:121",
+        "episode_id": "142807.0",
+        "event_id": "858968.0",
+        "event_type": "Thunderstorm Wind",
+        "llcrnrlat": "46.16780482213778",
+        "llcrnrlon": "-94.76080555833984",
+        "urcrnrlat": "49.388668178827686",
+        "urcrnrlon": "-89.26312111773504",
+        "proj": "+proj=laea +lat_0=38 +lon_0=-98 +units=m +a=6370997.0 +ellps=sphere ",
+        "size_x": "384",
+        "size_y": "384",
+        "height_m": "384000.0",
+        "width_m": "384000.0",
+        "data_min": "0.0",
+        "data_max": "254.0",
+        "pct_missing": "0.0"
+      },
+      "sha256": null,
+      "status": "blocked_budget",
+      "head_bytes": 3908920610
+    }
+  ],
+  "status": "blocked_budget",
+  "normalization": null,
+  "checkpoint": null
+}

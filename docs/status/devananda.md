@@ -51,3 +51,17 @@ Next: Manish reviews PR #5's demonstrated integration; Shawn reviews the end-to-
 ## Manish takeover reconciliation (2026-09-30)
 
 PR #5 advanced to `e191bbba6f2ed4e6087a282a2f94d2e65891276d` while the API takeover branch was being prepared. Its commits are merged into `fix/devananda-api-integration` without rewriting Devananda's history. The takeover keeps the validated +30/+60 persistence path and original +15 fixture separate, uses a distinct public persistence event alias for dashboard discovery, preserves PR #5's `NOWCAST_EVENT_BUNDLE_PATH` and `numeric_url` compatibility, and adds registered-artifact confinement and deeper mask tests. PR #7 is a draft into `develop`; neither PR is merged. PRs #2 and #3 remain dependencies.
+
+## Current takeover validation (2026-09-30)
+
+The earlier dependency wording is historical. Data PR #3 and model PR #2 are
+now merged into `develop` (`4997022`). Manish reconciled current `develop` into
+PR #7 without rewriting Devananda's commits. Only the three expected shared
+documentation files conflicted; their model and API evidence were combined.
+
+On Python 3.11.9 / NumPy 2.1.3, the reconciled branch passed 47 tests: 22 data,
+16 model/evaluation, 6 API, 1 hazard and 2 persistence integration tests. A
+local Uvicorn HTTP smoke verified health, capabilities, events, +30/+60 POST,
+saved-run retrieval, PNG/NumPy artifact serving, and 422 rejection for
++90/+180/+360. PR #7 is the current backend path; PR #5 remains preserved in
+its history and should not be merged separately.
