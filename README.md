@@ -1,21 +1,29 @@
-# SIH26084 nowcasting prototype
+# Convective Nowcasting
 
-Owner and project leader: @shawnmbindosh2006-ai. Coordinator: @manishj2007.
-Repository: https://github.com/shawnmbindosh2006-ai/sih26084-nowcast
+A research prototype for **SIH26084 — Convective scale nowcasting for Thunderstorms, Hail & Cloudbursts (0–6 hr)**.
 
-This starter contains work assignments, interfaces and collaboration templates. Application modules are to be implemented by the four contributors. It is not an operational warning system.
+## Project objective
 
-## First coordinator task
-If this repository initially contains SIH26084_Repository_Starter.zip, Manish extracts it, copies the contents of its sih26084-nowcast-starter folder into the root, commits the structure on a bootstrap branch and opens a PR to main for Shawn. After that bootstrap merge, create develop. The archive contains all four full prompts under docs/prompts/ and the frozen interface specification. Do not leave a duplicate nested project directory. This one setup task is followed by independent work in the four assigned modules.
+Develop a short-range storm forecasting workflow that combines meteorological observations, nowcasting models and geospatial visualisation. The problem statement targets 0–6 hour forecasts at 1–3 km spatial resolution for local severe-weather assessment.
 
-## Start here
-Read AGENTS.md, docs/TEAM.md and docs/CONTRACT.md. Paste your complete prompt from docs/prompts/ into your coding assistant. Start from develop on your named feature branch. Shawn approves stable releases on main; Manish coordinates integration on develop.
+## Planned system
 
-## Demonstration target
-A repeatable local fixture/replay workflow: input sequence -> persistence or verified pretrained adapter -> API -> observed/forecast display and GIS where geolocation is valid. Expose supported horizons, missing sensors and hazard limitations. Model inference and Indian deployment are separate acceptance gates.
+- Ingest and quality-check radar, satellite and lightning observations where data access is available.
+- Align observations in space and time while retaining their units and source metadata.
+- Generate forecasts through a reproducible baseline or a verified pretrained model.
+- Display observed and forecast frames, supported lead times and hazard information in a GIS dashboard.
+- Evaluate forecast performance on independent events.
 
-## Leader visibility
-Watch repository activity, branches, Issues, Pull requests and docs/status/. Each checkpoint must be pushed. Teammates' unpushed local changes cannot be seen by the leader. Keep runnable setup instructions and downloads reproducible.
+## Current status
 
-## No direct main pushes
-Follow CONTRIBUTING.md. Private GitHub Free repositories may not enforce branch protection or CODEOWNERS. Verify the actual settings; do not treat this file as an access control.
+The repository contains an initial project scaffold and technical interfaces. Application implementation and validation are in progress. The first demonstration is intended to use small synthetic fixtures or archived event replay before integrating additional data sources.
+
+## Scientific scope
+
+Forecast horizon, data coverage and effective spatial resolution will be reported for each configuration. Synthetic demonstrations, archived replay, baseline forecasts and learned-model inference must be clearly distinguished.
+
+SEVIR-based development does not establish performance over India. Radar VIL is not rainfall in mm/h. Hail, lightning, downburst and cloudburst outputs require suitable observations, methods and validation; unavailable outputs must remain explicit.
+
+## Local setup
+
+Installation and run instructions will be added with the runnable prototype, including application dependencies, sample data requirements and optional model setup.
