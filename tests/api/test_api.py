@@ -1,4 +1,7 @@
 import json
+from io import BytesIO
+
+import numpy as np
 
 from fastapi.testclient import TestClient
 
@@ -52,3 +55,44 @@ def test_artifact_paths_are_confined():
     assert client.get("/api/v1/artifacts/..%2F..%2Fsecret/illustrative-frame.png").status_code == 404
     assert client.get("/api/v1/artifacts/00000000000000000000000000000000/../../secret").status_code == 404
     assert client.get("/api/v1/nowcasts/not-a-run-id").status_code == 404
+
+
+def test_event_bundle_persistence_api_and_artifacts(tmp_path, monkeypatch):
+    from nowcast.data.fixture import generate_fixture
+
+    manifest = generate_fixture(tmp_path / "event")
+    monkeypatch.setenv("NOWCAST_EVENT_BUNDLE_PATH", str(manifest))
+    monkeypatch.setattr("nowcast.api.app.RUNS_DIR", (tmp_path / "runs").resolve())
+    caps = client.get("/api/v1/capabilities").json()
+    assert caps["supported_lead_times_minutes"] == [15, 30, 60]
+    assert {item["forecast_method"] for item in client.get("/api/v1/events").json()["events"]} == {"fixture", "persistence"}
+
+    response = client.post("/api/v1/nowcasts", json={
+        "event_id": "synthetic-demo-001", "lead_times_minutes": [30, 60]
+    })
+    assert response.status_code == 201, response.text
+    bundle = response.json()
+    assert bundle["schema_version"] == "1.0"
+    assert bundle["forecast_method"] == "persistence"
+    assert bundle["run_id"].startswith("persistence-")
+    assert [frame["lead_minutes"] for frame in bundle["frames"]] == [30, 60]
+    assert client.get(f"/api/v1/nowcasts/{bundle['run_id']}").json() == bundle
+    final = np.load(tmp_path / "event" / "observed.npy", allow_pickle=False)[-1, :, :, 0]
+    for frame in bundle["frames"]:
+        image = client.get(frame["image_url"])
+        numeric = client.get(frame["numeric_url"])
+        assert image.status_code == 200 and image.headers["content-type"] == "image/png"
+        assert image.content.startswith(b"\x89PNG\r\n\x1a\n")
+        assert numeric.status_code == 200 and numeric.headers["content-type"] == "application/octet-stream"
+        actual = np.load(BytesIO(numeric.content), allow_pickle=False)
+        assert np.isnan(actual[0, 0])
+        np.testing.assert_array_equal(actual[1:, :], final[1:, :])
+        np.testing.assert_array_equal(actual[0, 1:], final[0, 1:])
+    for hazard in bundle["hazards"].values():
+        assert hazard["status"] == "unavailable"
+        assert hazard["probability"] is None
+    assert client.post("/api/v1/nowcasts", json={"event_id": "synthetic-demo-001", "lead_times_minutes": [90]}).status_code == 422
+    assert client.post("/api/v1/nowcasts", json={"event_id": "synthetic-demo-001", "lead_times_minutes": [30], "forecast_method": "fixture"}).status_code == 422
+    assert client.get(f"/api/v1/artifacts/{bundle['run_id']}/bundle.json").status_code == 404
+    fixture = client.post("/api/v1/nowcasts", json={"event_id": "synthetic-demo-001", "lead_times_minutes": [15]}).json()
+    assert fixture["forecast_method"] == "fixture"
