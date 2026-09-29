@@ -16,3 +16,7 @@ Evidence and tests: fixture provenance is `fixtures/demo-event.json` (synthetic,
 Limitations: starter event is metadata-only. No weather forecast, calibrated proxy, hazards, sensor freshness measurement, geolocation, or real arrival estimate is produced. Supported 15-minute frame is labeled illustrative; 90/180/360-minute leads are rejected. No Python 3.11 environment was available for verification. HTTPX emits a Starlette TestClient deprecation warning in this environment.
 Blocker: no local develop branch, so feature branch tracks origin/develop. Push/PR needs GitHub credentials/network and has not been attempted.
 Next step: review interface names with Anamika/Manish, then commit and open a PR to develop after coordinated review.
+
+## Manish takeover note (2026-09-30)
+
+The preceding handoff is preserved as Devananda wrote it. Since then, her branch head is `7aab5818b3b46d3c7d7a1c4e6b73bcedb3d1ffc7` and PR #5 is open against `develop`: https://github.com/shawnmbindosh2006-ai/sih26084-nowcast/pull/5. The earlier "no PR" wording above is historical, not current status. Manish is adding the observed-only persistence integration on a separate `fix/devananda-api-integration` branch; Devananda's original commits and fixture +15 implementation remain intact. No PR has been merged by this takeover work.

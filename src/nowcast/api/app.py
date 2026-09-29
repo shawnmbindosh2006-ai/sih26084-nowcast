@@ -9,6 +9,7 @@ import struct
 import zlib
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException
@@ -17,13 +18,17 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from nowcast.hazards.assessment import assess_hazards, empty_zones
+from nowcast.api.display import write_display_png
 
 ROOT = Path(__file__).resolve().parents[3]
 FIXTURE_PATH = ROOT / "fixtures" / "demo-event.json"
 RUNS_DIR = Path(os.environ.get("NOWCAST_RUNS_DIR", str(ROOT / "runs"))).resolve()
 ALLOWED_LEADS = {15}
+PERSISTENCE_LEADS = {30, 60}
 ARTIFACT_NAME = "illustrative-frame.png"
-RUN_ID_PATTERN = re.compile(r"^[0-9a-f]{32}$")
+RUN_ID_PATTERN = re.compile(r"^(?:[0-9a-f]{32}|persistence-[0-9a-f]{32})$")
+ARTIFACT_PATTERN = re.compile(r"^(?:illustrative-frame\.png|lead-[0-9]{3}-channel-[0-9]{2}\.(?:npy|png))$")
+PERSISTENCE_EVENT_PATH = Path(os.environ["NOWCAST_EVENT_PATH"]).resolve() if os.environ.get("NOWCAST_EVENT_PATH") else None
 
 
 def _load_fixture() -> dict:
@@ -31,6 +36,59 @@ def _load_fixture() -> dict:
         return json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=503, detail="The demonstration fixture is unavailable or invalid.") from exc
+
+
+def _persistence_registration() -> tuple[str, dict] | None:
+    """Load only Harinandana's validated inference fields, never evaluation targets."""
+    if PERSISTENCE_EVENT_PATH is None:
+        return None
+    try:
+        from nowcast.data.loader import load_event
+
+        event = load_event(PERSISTENCE_EVENT_PATH)
+    except (ImportError, OSError, ValueError) as exc:
+        raise HTTPException(status_code=503, detail="The configured persistence EventBundle is unavailable or invalid.") from exc
+    public_id = f"persistence:{event['event_id']}"
+    if len(public_id) > 128:
+        raise HTTPException(status_code=503, detail="The configured persistence event ID is too long.")
+    return public_id, event
+
+
+def _create_persistence_nowcast(event: dict, public_id: str, lead_times: list[int]) -> dict:
+    try:
+        from nowcast.models.persistence import PersistenceNowcaster
+    except ImportError as exc:
+        raise HTTPException(status_code=503, detail="The persistence adapter is not installed.") from exc
+    # load_event excludes evaluation metadata. The public ID distinguishes this
+    # pipeline from the separate fixture endpoint without changing source files.
+    inference_event = {**event, "event_id": public_id}
+    bundle = PersistenceNowcaster(
+        artifact_root=RUNS_DIR,
+        supported_lead_times_minutes=sorted(PERSISTENCE_LEADS),
+    ).predict(inference_event, lead_times)
+    run_id = bundle["run_id"]
+    run_dir = (RUNS_DIR / run_id).resolve()
+    if run_dir.parent != RUNS_DIR or not RUN_ID_PATTERN.fullmatch(run_id):
+        raise HTTPException(status_code=500, detail="Invalid persistence run identity.")
+    for frame in bundle["frames"]:
+        numeric_url = frame["image_url"]
+        numeric_name = urlsplit(numeric_url).path.rsplit("/", 1)[-1]
+        if not ARTIFACT_PATTERN.fullmatch(numeric_name) or not numeric_name.endswith(".npy"):
+            raise HTTPException(status_code=500, detail="Invalid persistence artifact name.")
+        png_name = numeric_name[:-4] + ".png"
+        frame["display"] = write_display_png(run_dir / numeric_name, run_dir / png_name)
+        frame["numeric_array_url"] = numeric_url
+        frame["image_url"] = f"/api/v1/artifacts/{run_id}/{png_name}"
+    bundle["source_event_id"] = event["event_id"]
+    bundle["warnings"].append(
+        "PNG frames are deterministic grayscale previews; numeric NumPy arrays retain the original values and NaN mask."
+    )
+    if any(source.get("availability") in {"missing", "unavailable"} for source in event["sources"]):
+        bundle["warnings"].append("One or more declared input sources are missing or unavailable.")
+    if event["mode"] != "live":
+        bundle["warnings"].append("Archived/synthetic event timing is not a live arrival countdown.")
+    (run_dir / "bundle.json").write_text(json.dumps(bundle, indent=2, allow_nan=False), encoding="utf-8")
+    return bundle
 
 
 def _utc_now() -> datetime:
@@ -68,9 +126,6 @@ class NowcastRequest(BaseModel):
             raise ValueError("lead_times_minutes must not contain duplicates")
         if any(value < 0 for value in values):
             raise ValueError("lead times must be non-negative")
-        unsupported = sorted(set(values) - ALLOWED_LEADS)
-        if unsupported:
-            raise ValueError(f"unsupported lead times: {unsupported}; this illustrative fixture supports only 15 minutes")
         return sorted(values)
 
 
@@ -86,13 +141,16 @@ app.add_middleware(
 
 @app.get("/health")
 def health() -> dict:
+    registration = _persistence_registration()
+    if registration:
+        return {"status": "ok", "mode": registration[1]["mode"], "forecast_method": "persistence", "fixture_available": True}
     return {"status": "ok", "mode": "synthetic", "forecast_method": "fixture"}
 
 
 @app.get("/api/v1/capabilities")
 def capabilities() -> dict:
     fixture = _load_fixture()
-    return {
+    result = {
         "schema_version": "1.0", "desired_coverage_minutes": [0, 360],
         "supported_lead_times_minutes": [15], "mode": "synthetic", "forecast_method": "fixture",
         "hazard_availability": {"storm_intensity_proxy": "unavailable", "hail": "unavailable", "lightning": "unavailable", "downburst": "unavailable", "cloudburst": "unavailable"},
@@ -100,19 +158,49 @@ def capabilities() -> dict:
         "missing_sensors": ["radar", "satellite", "lightning"],
         "warnings": ["Illustrative placeholder only; no observations or weather prediction is included.", "Desired 0–6 hour coverage is not supported by this fixture."],
     }
+    registration = _persistence_registration()
+    if registration:
+        public_id, event = registration
+        result.update({
+            "supported_lead_times_minutes": sorted(PERSISTENCE_LEADS),
+            "mode": event["mode"], "forecast_method": "persistence",
+            "sources": event["sources"],
+            "source_freshness": "not validated; inspect EventBundle timestamps and source availability",
+            "missing_sensors": [source["id"] for source in event["sources"] if source.get("availability") in {"missing", "unavailable"}],
+            "warnings": ["Persistence repeats the last observed frame; it is not learned inference or validated weather skill.", "Fixture +15 remains a separate illustrative path."],
+            "available_pipelines": {
+                "fixture": {"event_id": fixture["event_id"], "supported_lead_times_minutes": [15]},
+                "persistence": {"event_id": public_id, "supported_lead_times_minutes": sorted(PERSISTENCE_LEADS)},
+            },
+        })
+    return result
 
 
 @app.get("/api/v1/events")
 def events() -> dict:
     fixture = _load_fixture()
-    return {"events": [{"event_id": fixture["event_id"], "mode": fixture["mode"], "event_time_utc": fixture["event_time_utc"], "sources": fixture["sources"], "status": "illustrative_metadata_only"}]}
+    available = [{"event_id": fixture["event_id"], "mode": fixture["mode"], "event_time_utc": fixture["event_time_utc"], "sources": fixture["sources"], "status": "illustrative_metadata_only", "forecast_method": "fixture"}]
+    registration = _persistence_registration()
+    if registration:
+        public_id, event = registration
+        available.insert(0, {"event_id": public_id, "source_event_id": event["event_id"], "mode": event["mode"], "event_time_utc": event["event_time_utc"], "sources": event["sources"], "status": "validated_observed", "forecast_method": "persistence"})
+    return {"events": available}
 
 
 @app.post("/api/v1/nowcasts", status_code=201)
 def create_nowcast(request: NowcastRequest) -> dict:
     fixture = _load_fixture()
+    registration = _persistence_registration()
+    if registration and request.event_id == registration[0]:
+        unsupported = sorted(set(request.lead_times_minutes) - PERSISTENCE_LEADS)
+        if unsupported:
+            raise HTTPException(status_code=422, detail=f"Unsupported persistence leads: {unsupported}; supported={sorted(PERSISTENCE_LEADS)}")
+        return _create_persistence_nowcast(registration[1], registration[0], request.lead_times_minutes)
     if request.event_id != fixture.get("event_id"):
         raise HTTPException(status_code=404, detail="Unknown event_id.")
+    unsupported = sorted(set(request.lead_times_minutes) - ALLOWED_LEADS)
+    if unsupported:
+        raise HTTPException(status_code=422, detail=f"Unsupported fixture leads: {unsupported}; supported={[15]}")
     run_id = uuid4().hex
     event_time = datetime.fromisoformat(fixture["event_time_utc"].replace("Z", "+00:00"))
     issued_at = _utc_now()
@@ -152,10 +240,21 @@ def get_nowcast(run_id: str) -> dict:
 
 @app.get("/api/v1/artifacts/{run_id}/{filename}")
 def get_artifact(run_id: str, filename: str) -> FileResponse:
-    if not RUN_ID_PATTERN.fullmatch(run_id) or filename != ARTIFACT_NAME:
+    if not RUN_ID_PATTERN.fullmatch(run_id) or not ARTIFACT_PATTERN.fullmatch(filename):
         raise HTTPException(status_code=404, detail="Artifact not found.")
     run_dir = (RUNS_DIR / run_id).resolve()
+    bundle_path = (run_dir / "bundle.json").resolve()
     artifact = (run_dir / filename).resolve()
-    if run_dir.parent != RUNS_DIR or artifact.parent != run_dir or not artifact.is_file():
+    if run_dir.parent != RUNS_DIR or bundle_path.parent != run_dir or not bundle_path.is_file() or artifact.parent != run_dir or not artifact.is_file():
         raise HTTPException(status_code=404, detail="Artifact not found.")
-    return FileResponse(artifact, media_type="image/png", filename=filename)
+    bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
+    allowed = {
+        url
+        for frame in bundle.get("frames", [])
+        for url in (frame.get("image_url"), frame.get("numeric_array_url"))
+        if isinstance(url, str)
+    }
+    if f"/api/v1/artifacts/{run_id}/{filename}" not in allowed:
+        raise HTTPException(status_code=404, detail="Artifact not found.")
+    media_type = "image/png" if filename.endswith(".png") else "application/octet-stream"
+    return FileResponse(artifact, media_type=media_type, filename=filename)
