@@ -1,13 +1,13 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {createRoot} from 'react-dom/client';
-import {MapContainer, TileLayer, CircleMarker, GeoJSON, useMap} from 'react-leaflet';
+import {MapContainer, TileLayer, GeoJSON, ImageOverlay, useMap} from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import './styles.css';
 import fixture from './fixture.json';
+import {HAZARD_NAMES, artifactUrl, fetchForecastBundle, frameLabel, mapBounds, probabilityLabel, supportedFrames} from './contract.js';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
-function utcNow(){ return Date.now(); }
 function fmtUtc(iso){ if(!iso) return 'Unavailable'; return new Date(iso).toISOString().replace('T',' ').replace('.000Z','Z'); }
 function fmtIst(iso){ if(!iso) return 'Unavailable'; return new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',dateStyle:'medium',timeStyle:'short'}).format(new Date(iso))+' IST'; }
 function countdown(arrival, clock){
@@ -18,93 +18,102 @@ function countdown(arrival, clock){
   return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 }
 
-function MapResize(){ const map=useMap(); useEffect(()=>{setTimeout(()=>map.invalidateSize(),50)},[map]); return null; }
+function MapResize(){ const map=useMap(); useEffect(()=>{const id=setTimeout(()=>map.invalidateSize(),50);return ()=>clearTimeout(id)},[map]); return null; }
 
-function App(){
-  const [bundle,setBundle]=useState(fixture);
-  const [mode,setMode]=useState('fixture');
+export function App({initialBundle=fixture, apiBase=API_BASE}){
+  const [bundle,setBundle]=useState(initialBundle);
+  const [source,setSource]=useState('fixture');
   const [lead,setLead]=useState(0);
   const [playing,setPlaying]=useState(false);
-  const [replayClock,setReplayClock]=useState(new Date(fixture.replay?.clock_utc || fixture.issue_time_utc).getTime());
-  const [apiState,setApiState]=useState(API_BASE ? 'loading' : 'offline');
+  const [now,setNow]=useState(Date.now());
+  const [apiState,setApiState]=useState(apiBase ? 'loading' : 'offline');
   const [error,setError]=useState('');
 
   useEffect(()=>{
-    if(!API_BASE) return;
+    if(!apiBase) return;
     const ctrl=new AbortController();
-    fetch(`${API_BASE.replace(/\/$/,'')}/forecast`,{signal:ctrl.signal})
-      .then(r=>{if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json()})
-      .then(data=>{setBundle(data);setMode('api');setApiState('online');setError('')})
-      .catch(e=>{if(e.name!=='AbortError'){setApiState('offline');setError('API unavailable — showing local fixture replay.')}});
+    async function loadNowcast(){
+      try {
+        const data=await fetchForecastBundle(apiBase,ctrl.signal);
+        if(ctrl.signal.aborted) return;
+        setBundle(data);setLead(0);setPlaying(false);setSource('api');setApiState('online');setError('');
+      } catch(e) {
+        if(!ctrl.signal.aborted){setApiState('offline');setError(`API unavailable (${e.message}) — showing local synthetic fixture.`);}
+      }
+    }
+    loadNowcast();
     return ()=>ctrl.abort();
-  },[]);
+  },[apiBase]);
 
+  const frames=useMemo(()=>supportedFrames(bundle),[bundle]);
   useEffect(()=>{
     if(!playing) return;
-    const id=setInterval(()=>setLead(v=>{
-      const next=v+1;
-      if(next>=bundle.leads.length){setPlaying(false);return v;}
-      return next;
+    const id=setInterval(()=>setLead(value=>{
+      if(value+1>=frames.length){setPlaying(false);return value;}
+      return value+1;
     }),1000);
     return ()=>clearInterval(id);
-  },[playing,bundle.leads.length]);
+  },[playing,frames.length]);
+  useEffect(()=>{
+    if(bundle.mode!=='live') return;
+    const id=setInterval(()=>setNow(Date.now()),1000);
+    return ()=>clearInterval(id);
+  },[bundle.mode]);
 
-  const selected=bundle.leads[lead] || bundle.leads[0];
-  const hazards=selected?.hazards || {};
-  const clock=mode==='fixture' ? replayClock : utcNow();
-  const arrival=countdown(selected?.arrival_estimate_utc,clock);
-  const stale=selected?.input?.stale === true;
-  const validBounds=Array.isArray(selected?.bounds?.bbox) && selected.bounds.bbox.length===4;
-  const center=validBounds ? [(selected.bounds.bbox[1]+selected.bounds.bbox[3])/2,(selected.bounds.bbox[0]+selected.bounds.bbox[2])/2] : [20,78];
-  const unsupported=['hail','lightning','downburst','cloudburst'];
-  const mapGeo=selected?.hazard_geojson || null;
-  const leadOptions=bundle.leads.map((x,i)=>({i,label:x.lead_minutes===0?'Observed':`+${x.lead_minutes} min`,supported:x.supported!==false,reason:x.unsupported_reason}));
+  const selected=frames[lead] || frames[0];
+  const hazards=bundle.hazards || {};
+  const bounds=mapBounds(bundle.grid);
+  const frameUrl=artifactUrl(selected?.image_url,source==='api'?apiBase:'');
+  const zones={type:'FeatureCollection',features:HAZARD_NAMES.flatMap(name=>hazards[name]?.zones?.features || [])};
+  const clock=bundle.mode==='live' ? now : new Date(bundle.issued_at_utc).getTime();
+  const arrivalEstimate=HAZARD_NAMES.map(name=>hazards[name]).find(hazard=>hazard?.status!=='unavailable' && hazard?.estimated_arrival_utc)?.estimated_arrival_utc;
+  const arrival=countdown(arrivalEstimate,clock);
+  const badge=`${bundle.mode?.toUpperCase() || 'UNKNOWN'} · ${bundle.forecast_method?.toUpperCase() || 'UNKNOWN'} · ${source==='api'?'API':'LOCAL DEMO'}`;
+  const provenance=bundle.sources?.map(item=>item.provenance || item.id).filter(Boolean).join('; ') || 'Not supplied';
 
   return <div className="app">
     <header className="topbar">
       <div><div className="eyebrow">MoES / NCMRWF · SIH26084</div><h1>Convective Nowcast Dashboard</h1></div>
-      <div className="mode-badge"><span className="dot"/> {mode==='api'?'MODEL/API MODE':'SYNTHETIC DEMO'}</div>
+      <div className="mode-badge"><span className="dot"/> {badge}</div>
     </header>
     <main>
       <section className="status-row">
-        <div className="status-card"><b>Mode</b><span>{mode==='api'?'API / integrated':'Synthetic fixture / replay'}</span></div>
+        <div className="status-card"><b>Mode / method</b><span>{bundle.mode} / {bundle.forecast_method}</span></div>
         <div className="status-card"><b>Event time</b><span>{fmtUtc(bundle.event_time_utc)}</span></div>
-        <div className="status-card"><b>Issue time</b><span>{fmtUtc(bundle.issue_time_utc)}</span></div>
-        <div className="status-card"><b>Replay clock</b><span>{fmtUtc(new Date(clock).toISOString())}</span></div>
+        <div className="status-card"><b>Issue time</b><span>{fmtUtc(bundle.issued_at_utc)}</span></div>
+        <div className="status-card"><b>{bundle.mode==='live'?'Live clock':'Issue-time clock'}</b><span>{fmtUtc(new Date(clock).toISOString())}</span></div>
       </section>
       {error && <div className="banner warning">{error}</div>}
-      {stale && <div className="banner danger">Stale input: this frame is retained for replay/demo only. Hazard countdowns are not presented as live.</div>}
+      {bundle.warnings?.map((warning,index)=><div className="banner warning" key={index}>{warning}</div>)}
 
       <section className="grid">
         <div className="card map-card">
-          <div className="card-head"><div><h2>Observed / forecast scene</h2><p>{bundle.region?.name || 'Unknown region'} · {bundle.grid?.native_km ? `${bundle.grid.native_km} km native` : 'native spacing unknown'}{bundle.grid?.effective_km ? ` · ${bundle.grid.effective_km} km effective` : ''}</p></div><span className="pill">{leadOptions[lead]?.label}</span></div>
-          {validBounds ? <MapContainer center={center} zoom={6} scrollWheelZoom className="map"><MapResize/><TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"/>{mapGeo && <GeoJSON data={mapGeo}/>} {(selected.points||[]).map((p,i)=><CircleMarker key={i} center={[p.lat,p.lon]} radius={6}></CircleMarker>)}</MapContainer> : <div className="neutral-map"><div><strong>Neutral coordinate frame</strong><p>Geography is unavailable or unverified. The dashboard will not invent an Indian overlay.</p><div className="fake-grid">{Array.from({length:36}).map((_,i)=><i key={i}/>)}</div></div></div>}
-          <div className="map-caption">Map overlay is shown only when valid coordinates/bounds exist. Synthetic geography remains illustrative.</div>
+          <div className="card-head"><div><h2>Forecast frame / illustrative scene</h2><p>{bounds?'Georeferenced bounds available':'Geography unknown'} · {bundle.grid?.native_spacing_km != null ? `${bundle.grid.native_spacing_km} km native` : 'native spacing unknown'}{bundle.grid?.effective_spacing_km != null ? ` · ${bundle.grid.effective_spacing_km} km effective` : ''}</p></div><span className="pill">{selected ? frameLabel(bundle,selected) : 'No frame'}</span></div>
+          {bounds ? <MapContainer bounds={bounds} scrollWheelZoom className="map"><MapResize/><TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"/>{frameUrl && <ImageOverlay url={frameUrl} bounds={bounds}/>}{zones.features.length>0 && <GeoJSON data={zones}/>}</MapContainer>
+            : <div className="neutral-map">{frameUrl ? <img src={frameUrl} alt={`${selected?.variable || 'Illustrative'} frame without verified geography`} style={{maxWidth:'100%',maxHeight:'100%',objectFit:'contain'}}/> : <div><strong>Image unavailable</strong><p>Geography is unknown. No map placement or weather image is inferred.</p><div className="fake-grid">{Array.from({length:36}).map((_,index)=><i key={index}/>)}</div></div>}</div>}
+          <div className="map-caption">{selected?.variable || 'Variable unavailable'} · {selected?.units || 'units unavailable'}. Map placement requires valid grid.bounds_wgs84.</div>
         </div>
 
-        <aside className="card hazard-card"><div className="card-head"><div><h2>Hazard status</h2><p>Only supplied/calibrated outputs are shown as probabilities.</p></div></div>
-          {unsupported.map(k=><Hazard key={k} name={k} data={hazards[k]}/>) }
-          <div className="proxy"><div><b>VIL proxy</b><span>Not rainfall (mm/h)</span></div><strong>{selected.vil_proxy?.value ?? '—'}</strong><small>{selected.vil_proxy?.method || 'Meaning unavailable'}</small></div>
-          <div className="quality"><b>Input quality</b><span>{selected.input?.quality || 'Not supplied'}</span><small>{selected.input?.quality_method || 'No calibrated confidence method supplied.'}</small></div>
+        <aside className="card hazard-card"><div className="card-head"><div><h2>Hazard status</h2><p>Probabilities appear only for validated, calibrated outputs.</p></div></div>
+          {HAZARD_NAMES.filter(name=>name!=='storm_intensity_proxy').map(name=><Hazard key={name} name={name} data={hazards[name]}/>) }
+          <div className="proxy"><div><b>VIL / storm-intensity proxy</b><span>Not rainfall (mm/h)</span></div><strong>{hazards.storm_intensity_proxy?.status || 'unavailable'}</strong><small>{hazards.storm_intensity_proxy?.method || hazards.storm_intensity_proxy?.reason || 'Meaning unavailable'}</small></div>
         </aside>
       </section>
 
-
       <section className="card controls">
-        <div className="control-line"><div><h2>Supported lead</h2><p>Unsupported horizons stay disabled with a reason.</p></div><div className="lead-buttons">{leadOptions.map(o=><button key={o.i} disabled={!o.supported} className={o.i===lead?'active':''} onClick={()=>setLead(o.i)}>{o.label}{!o.supported && <small>disabled</small>}</button>)}</div></div>
-        <div className="slider-row"><button className="play" onClick={()=>setPlaying(v=>!v)}>{playing?'Pause':'Play'}</button><input type="range" min="0" max={Math.max(bundle.leads.length-1,0)} value={lead} onChange={e=>{setLead(Number(e.target.value));setPlaying(false)}}/><span>{selected?.valid_time_utc ? fmtUtc(selected.valid_time_utc) : 'Unavailable'}</span></div>
-        {mode==='fixture' && <div className="replay-row"><label>Replay clock</label><input type="range" min={new Date(bundle.replay.start_utc).getTime()} max={new Date(bundle.replay.end_utc).getTime()} value={replayClock} onChange={e=>setReplayClock(Number(e.target.value))}/><span>{fmtUtc(new Date(replayClock).toISOString())}</span></div>}
+        <div className="control-line"><div><h2>Supported lead</h2><p>Only frames listed in supported_lead_times_minutes can be selected or played.</p></div><div className="lead-buttons">{frames.map((frame,index)=><button key={frame.lead_minutes} className={index===lead?'active':''} onClick={()=>setLead(index)}>{frameLabel(bundle,frame)}</button>)}</div></div>
+        <div className="slider-row"><button className="play" disabled={frames.length<2} onClick={()=>setPlaying(value=>!value)}>{playing?'Pause':'Play'}</button><input type="range" min="0" max={Math.max(frames.length-1,0)} value={lead} onChange={event=>{setLead(Number(event.target.value));setPlaying(false)}}/><span>{selected?.valid_time_utc ? fmtUtc(selected.valid_time_utc) : 'Unavailable'}</span></div>
       </section>
 
       <section className="bottom-grid">
-        <div className="card"><h2>Arrival countdown</h2><div className="countdown">{arrival || 'Unavailable'}</div><p>{selected?.arrival_estimate_utc ? `Estimate: ${fmtUtc(selected.arrival_estimate_utc)} · ${fmtIst(selected.arrival_estimate_utc)}` : 'No valid estimated arrival supplied.'}</p></div>
-        <div className="card"><h2>Data provenance</h2><ul className="meta"><li><b>Dataset:</b> {bundle.provenance?.dataset || 'Not supplied'}</li><li><b>Region:</b> {bundle.region?.name || 'Unknown'}</li><li><b>Source status:</b> {apiState==='online'?'API online':'Local fixture'}</li><li><b>Claims:</b> {bundle.provenance?.claims || 'Illustrative demo only'}</li></ul></div>
+        <div className="card"><h2>Arrival countdown</h2><div className="countdown">{arrival || 'Unavailable'}</div><p>{arrivalEstimate ? `Estimate: ${fmtUtc(arrivalEstimate)} · ${fmtIst(arrivalEstimate)}` : 'No valid estimated arrival supplied.'}</p></div>
+        <div className="card"><h2>Data provenance</h2><ul className="meta"><li><b>Sources:</b> {provenance}</li><li><b>Event:</b> {bundle.event_id || 'Not supplied'}</li><li><b>Source status:</b> {apiState==='online'?'API online':'Local fixture'}</li><li><b>Run:</b> {bundle.run_id || 'Not supplied'}</li></ul></div>
       </section>
     </main>
-    <footer>Dashboard owned by Anamika · feature/anamika-dashboard · No live hazard claims are made by this fixture.</footer>
-  </div>
+    <footer>Dashboard owned by Anamika · contract compatibility fix · Synthetic fixtures are not live forecasts.</footer>
+  </div>;
 }
 
-function Hazard({name,data}){ const available=data?.status==='available' && data?.probability!=null; return <div className="hazard"><div><b>{name[0].toUpperCase()+name.slice(1)}</b><span>{data?.status || 'unavailable'}</span></div><strong>{available ? `${Math.round(data.probability*100)}%` : 'Not available'}</strong></div> }
+function Hazard({name,data}){ return <div className="hazard"><div><b>{name[0].toUpperCase()+name.slice(1)}</b><span>{data?.status || 'unavailable'}</span></div><strong>{probabilityLabel(data)}</strong></div> }
 
-createRoot(document.getElementById('root')).render(<App/>);
+if(typeof document!=='undefined' && document.getElementById('root')) createRoot(document.getElementById('root')).render(<App/>);
