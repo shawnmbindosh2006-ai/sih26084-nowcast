@@ -1,3 +1,2 @@
-# Leader approval applies to main when required Code Owner reviews are enforced.
-# On develop, Manish reviews ordinary PRs; do not require this owner-only file there.
+# Repository-owner review for changes to main when enforcement is available.
 * @shawnmbindosh2006-ai

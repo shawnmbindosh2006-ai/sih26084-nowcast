@@ -7,7 +7,7 @@ dist/
 .env
 .env.*
 !.env.example
-data/
+/data/
 checkpoints/
 runs/
 *.h5
