@@ -55,11 +55,11 @@ complete. No credentials, account purchase or bulk bucket sync is required for
 the public AWS source. HDF5 conversion awaits a permitted bounded sample and
 approved checkpoint preprocessing; this command does not produce a replay bundle.
 
-## India adapter path (primary documentation checked 2026-09-29)
-
 Investigation result: catalog 33,838,047 bytes (downloaded and hashed); selected
 VIL container 3,908,920,610 bytes (HEAD only, download blocked by budget).
 See `configs/data/sevir-manifest.json`. No HDF5 data was fetched.
+
+## India adapter path (primary documentation checked 2026-09-29)
 
 All three adapters in `nowcast.data.india` explicitly return unavailable source
 status and raise on loading. No permitted real sample or feed credential has

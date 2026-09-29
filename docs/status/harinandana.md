@@ -15,7 +15,13 @@ Done:
 - Bounded SEVIR probe and committed catalog/object provenance manifests.
 - Indian adapter stubs and primary-source access/calibration plan documented.
 
-Commit and PR: implementation checkpoint pending; will record verified push/PR.
+Commit and PR:
+- Implementation checkpoint a974c2b03c24b8b068fa14defe0bf4e249aa2c4b pushed and
+  verified against origin/feature/harinandana-data.
+- Draft PR https://github.com/shawnmbindosh2006-ai/sih26084-nowcast/pull/3 verified
+  open, base develop, head feature/harinandana-data. Not merged.
+- This handoff-only follow-up records the verified PR; implementation checks
+  above apply to a974c2b. No code changed after those checks.
 Base: origin/develop at ea2fb4b31150397b157aff6e16065f6f362ffb60.
 Task: Harinandana data ingestion assignment in docs/prompts/harinandana.txt.
 
@@ -57,7 +63,9 @@ Blockers and limitations:
 - Shared integration was inspected read-only at model branch b2b7cff; not merged
   or executed. API/dashboard end-to-end checks are outside this module checkpoint.
 - GitHub connector issue search returned 422 (repository inaccessible to that
-  connector); Git remote fetch succeeded through local Git credentials.
+  connector) and PR creation returned 404. Local Git credentials successfully
+  pushed and created/verified the draft PR through GitHub's REST API. No
+  credentials were printed or saved. The PR links the repository task prompt.
 
 Next step: Manish reviews mask/channel conventions and dependency reconciliation,
 runs target Python 3.11 checks and coordinates the model/API handoff. No ETA for
