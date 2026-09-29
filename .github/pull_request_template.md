@@ -13,5 +13,4 @@
 ## Limitations and blockers
 
 ## Review
-Ordinary develop PR: Manish (or peer for Manish's own PR).
-Release PR to main: Shawn approval.
+Feature PRs to develop require peer review. Release PRs to main require repository-owner review.
