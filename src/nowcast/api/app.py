@@ -1,4 +1,4 @@
-"""FastAPI fixture demo. Outputs are illustrative and are not weather forecasts."""
+"""FastAPI fixture and opt-in persistence baseline demonstration."""
 
 from __future__ import annotations
 
@@ -40,12 +40,13 @@ def _load_fixture() -> dict:
 
 def _persistence_registration() -> tuple[str, dict] | None:
     """Load only Harinandana's validated inference fields, never evaluation targets."""
-    if PERSISTENCE_EVENT_PATH is None:
+    path = _event_bundle_path()
+    if path is None:
         return None
     try:
         from nowcast.data.loader import load_event
 
-        event = load_event(PERSISTENCE_EVENT_PATH)
+        event = load_event(path)
     except (ImportError, OSError, ValueError) as exc:
         raise HTTPException(status_code=503, detail="The configured persistence EventBundle is unavailable or invalid.") from exc
     public_id = f"persistence:{event['event_id']}"
@@ -78,6 +79,7 @@ def _create_persistence_nowcast(event: dict, public_id: str, lead_times: list[in
         png_name = numeric_name[:-4] + ".png"
         frame["display"] = write_display_png(run_dir / numeric_name, run_dir / png_name)
         frame["numeric_array_url"] = numeric_url
+        frame["numeric_url"] = numeric_url  # PR #5 compatibility alias.
         frame["image_url"] = f"/api/v1/artifacts/{run_id}/{png_name}"
     bundle["source_event_id"] = event["event_id"]
     bundle["warnings"].append(
@@ -114,10 +116,17 @@ def _write_illustrative_png(path: Path) -> None:
     path.write_bytes(data)
 
 
+def _event_bundle_path() -> Path | None:
+    """Keep Devananda's environment name and the takeover alias compatible."""
+    configured = os.environ.get("NOWCAST_EVENT_BUNDLE_PATH") or os.environ.get("NOWCAST_EVENT_PATH")
+    return PERSISTENCE_EVENT_PATH or (Path(configured).resolve() if configured else None)
+
+
 class NowcastRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     event_id: str = Field(min_length=1, max_length=128)
     lead_times_minutes: list[int] = Field(min_length=1, max_length=12)
+    forecast_method: str | None = None
 
     @field_validator("lead_times_minutes")
     @classmethod
@@ -127,6 +136,13 @@ class NowcastRequest(BaseModel):
         if any(value < 0 for value in values):
             raise ValueError("lead times must be non-negative")
         return sorted(values)
+
+    @field_validator("forecast_method")
+    @classmethod
+    def validate_method(cls, value: str | None) -> str | None:
+        if value not in (None, "fixture", "persistence"):
+            raise ValueError("forecast_method must be fixture or persistence")
+        return value
 
 
 app = FastAPI(title="SIH26084 Nowcast API", version="1.0.0")
@@ -152,7 +168,9 @@ def capabilities() -> dict:
     fixture = _load_fixture()
     result = {
         "schema_version": "1.0", "desired_coverage_minutes": [0, 360],
-        "supported_lead_times_minutes": [15], "mode": "synthetic", "forecast_method": "fixture",
+        "supported_lead_times_minutes": [15],
+        "mode": "synthetic", "forecast_method": "fixture",
+        "forecast_methods": ["fixture"],
         "hazard_availability": {"storm_intensity_proxy": "unavailable", "hail": "unavailable", "lightning": "unavailable", "downburst": "unavailable", "cloudburst": "unavailable"},
         "sources": fixture.get("sources", []), "source_freshness": "unknown; metadata-only fixture",
         "missing_sensors": ["radar", "satellite", "lightning"],
@@ -164,6 +182,7 @@ def capabilities() -> dict:
         result.update({
             "supported_lead_times_minutes": sorted(PERSISTENCE_LEADS),
             "mode": event["mode"], "forecast_method": "persistence",
+            "forecast_methods": ["fixture", "persistence"],
             "sources": event["sources"],
             "source_freshness": "not validated; inspect EventBundle timestamps and source availability",
             "missing_sensors": [source["id"] for source in event["sources"] if source.get("availability") in {"missing", "unavailable"}],
@@ -191,11 +210,21 @@ def events() -> dict:
 def create_nowcast(request: NowcastRequest) -> dict:
     fixture = _load_fixture()
     registration = _persistence_registration()
-    if registration and request.event_id == registration[0]:
+    persistence_id = registration[0] if registration else None
+    source_id = registration[1]["event_id"] if registration else None
+    wants_persistence = registration and (
+        request.event_id == persistence_id
+        or (request.event_id == source_id and request.forecast_method != "fixture" and request.lead_times_minutes != [15])
+    )
+    if wants_persistence:
+        if request.forecast_method == "fixture":
+            raise HTTPException(status_code=422, detail="Fixture method is not available for the persistence event.")
         unsupported = sorted(set(request.lead_times_minutes) - PERSISTENCE_LEADS)
         if unsupported:
             raise HTTPException(status_code=422, detail=f"Unsupported persistence leads: {unsupported}; supported={sorted(PERSISTENCE_LEADS)}")
-        return _create_persistence_nowcast(registration[1], registration[0], request.lead_times_minutes)
+        return _create_persistence_nowcast(registration[1], persistence_id, request.lead_times_minutes)
+    if request.forecast_method == "persistence":
+        raise HTTPException(status_code=422, detail="Persistence requires a configured EventBundle and +30/+60 lead.")
     if request.event_id != fixture.get("event_id"):
         raise HTTPException(status_code=404, detail="Unknown event_id.")
     unsupported = sorted(set(request.lead_times_minutes) - ALLOWED_LEADS)
@@ -251,7 +280,7 @@ def get_artifact(run_id: str, filename: str) -> FileResponse:
     allowed = {
         url
         for frame in bundle.get("frames", [])
-        for url in (frame.get("image_url"), frame.get("numeric_array_url"))
+        for url in (frame.get("image_url"), frame.get("numeric_array_url"), frame.get("numeric_url"))
         if isinstance(url, str)
     }
     if f"/api/v1/artifacts/{run_id}/{filename}" not in allowed:

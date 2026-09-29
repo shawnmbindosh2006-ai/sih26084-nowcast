@@ -7,12 +7,12 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-app.txt
 $env:PYTHONPATH = (Resolve-Path src).Path
 .\.venv\Scripts\python.exe -m nowcast.data generate runs/integration-fixture
-$env:NOWCAST_EVENT_PATH = (Resolve-Path runs/integration-fixture/event.json).Path
+$env:NOWCAST_EVENT_BUNDLE_PATH = (Resolve-Path runs/integration-fixture/event.json).Path
 $env:NOWCAST_RUNS_DIR = Join-Path (Get-Location) 'runs/api'
 .\.venv\Scripts\python.exe -m uvicorn nowcast.api.app:app --host 127.0.0.1 --port 8000
 ```
 
-In another PowerShell window, use the same `NOWCAST_EVENT_PATH` and `NOWCAST_RUNS_DIR` values for any direct Python checks. The API calls below discover the event without requiring those variables in the client shell:
+In another PowerShell window, use the same `NOWCAST_EVENT_BUNDLE_PATH` and `NOWCAST_RUNS_DIR` values for any direct Python checks. The API also accepts `NOWCAST_EVENT_PATH` for this takeover branch. The API calls below discover the event without requiring those variables in the client shell:
 
 ```powershell
 Invoke-RestMethod http://127.0.0.1:8000/health
@@ -34,4 +34,4 @@ $env:PYTHONPATH = (Resolve-Path src).Path
 .\.venv\Scripts\python.exe -m pytest -q tests/api tests/hazards tests/models tests/data
 ```
 
-Without `NOWCAST_EVENT_PATH`, the API runs only Devananda's original synthetic +15 placeholder. No real data, learned model, calibrated hazard, rainfall-rate mapping or Indian forecast skill is provided by these commands.
+Without either EventBundle path setting, the API runs only Devananda's original synthetic +15 placeholder. No real data, learned model, calibrated hazard, rainfall-rate mapping or Indian forecast skill is provided by these commands.

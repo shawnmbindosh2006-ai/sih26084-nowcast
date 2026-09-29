@@ -65,7 +65,10 @@ def test_fixture_and_persistence_stay_distinct(configured_api):
     assert fixture.json()["forecast_method"] == "fixture"
     assert fixture.json()["frames"][0]["variable"] == "illustrative_placeholder"
     assert client.post("/api/v1/nowcasts", json={"event_id": persistence_id, "lead_times_minutes": [15]}).status_code == 422
-    assert client.post("/api/v1/nowcasts", json={"event_id": "synthetic-demo-001", "lead_times_minutes": [30]}).status_code == 422
+    legacy = client.post("/api/v1/nowcasts", json={"event_id": "synthetic-demo-001", "lead_times_minutes": [30]})
+    assert legacy.status_code == 201
+    assert legacy.json()["forecast_method"] == "persistence" and legacy.json()["event_id"] == persistence_id
+    assert client.post("/api/v1/nowcasts", json={"event_id": "synthetic-demo-001", "lead_times_minutes": [30], "forecast_method": "fixture"}).status_code == 422
     for lead in (90, 180, 360):
         assert client.post("/api/v1/nowcasts", json={"event_id": persistence_id, "lead_times_minutes": [lead]}).status_code == 422
     assert event_path.is_file()
@@ -100,6 +103,7 @@ def test_observed_only_persistence_artifacts_and_contract(configured_api):
         assert frame["variable"] == "demo_intensity" and frame["units"] == "arbitrary_demo_units"
         assert frame["image_url"].startswith(f'/api/v1/artifacts/{bundle["run_id"]}/')
         assert frame["numeric_array_url"].startswith(f'/api/v1/artifacts/{bundle["run_id"]}/')
+        assert frame["numeric_url"] == frame["numeric_array_url"]
         image = client.get(frame["image_url"])
         numeric = client.get(frame["numeric_array_url"])
         assert image.status_code == 200 and image.headers["content-type"] == "image/png"
