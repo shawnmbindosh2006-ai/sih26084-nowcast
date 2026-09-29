@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.0",
+  "event_id": "synthetic-demo-001",
+  "mode": "synthetic",
+  "event_time_utc": "2026-01-01T00:00:00Z",
+  "timestamps_utc": [
+    "2026-01-01T00:00:00Z"
+  ],
+  "observed_array_path": null,
+  "channel_names": [
+    "demo_intensity"
+  ],
+  "channel_units": [
+    "arbitrary_demo_units"
+  ],
+  "quality_mask_path": null,
+  "sources": [
+    {
+      "id": "fixture",
+      "availability": "synthetic",
+      "provenance": "Generated demonstration data; not observations"
+    }
+  ],
+  "grid": {
+    "native_spacing_km": null,
+    "effective_spacing_km": null,
+    "crs": null,
+    "bounds_wgs84": null
+  },
+  "note": "Metadata illustration only. Harinandana must generate actual arrays, sequence timestamps and validated manifests before running inference."
+}
