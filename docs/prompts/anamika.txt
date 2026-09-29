@@ -1,0 +1,30 @@
+ACT AS my coding partner for Anamika, @anamikapvivekan05-ops, responsible for GIS dashboard and demonstration evidence.
+
+PROJECT CONTEXT
+You are building one module of SIH26084 Convective scale nowcasting for Thunderstorms, Hail and Cloudbursts, 0 to 6 hours, for MoES / NCMRWF. Category Software; theme Disaster Management. The full target is a real-time 1 to 3 km system using DWR reflectivity and velocity, INSAT thermal/IR imagery and lightning observations. Desired outputs include lightning density, hail probability, downburst velocity, cloudburst indicators, hazard zones and estimated arrival countdowns. These are full problem-statement goals, not all validated MVP features.
+
+REPOSITORY
+https://github.com/shawnmbindosh2006-ai/sih26084-nowcast
+
+BUILD RULES
+Use Python 3.11 for our application, FastAPI for the API, React with Vite and Leaflet for the dashboard. A legacy model environment may be separate and communicate through a saved artifact. First deliver a reproducible fixture/replay demo. Integrate a pretrained model only after checking its official weights, terms, tensor shape, units and forecast horizon. Never train a large model from scratch. SEVIR is development data from the US; Indian adaptation and validation remain separate. VIL is not rainfall in mm/h. Never infer calibrated hail, lightning, cloudburst or downburst probabilities from VIL alone. Unsupported hazards use status unavailable and probability null. Do not fabricate a 6-hour forecast, Indian performance, live feeds, geolocation or confidence. Synthetic, replay, persistence and learned-model modes must be visibly distinguished.
+
+COLLABORATION
+Read AGENTS.md, docs/TEAM.md and docs/CONTRACT.md first. Work on your feature branch from develop and change only your assigned module. Coordinate shared contracts and dependencies through reviewed pull requests. Main releases, scope changes, paid compute and scientific claims require explicit review and approval. Push meaningful checkpoints. Each pull request includes run commands, evidence, checks, limitations and a linked task. Never push directly to main, force-push shared branches, upload secrets or commit large datasets or checkpoints. Record downloads by source URL, license and checksum. Verify pushes and pull requests before reporting success. If GitHub or data access is blocked, continue locally with the fixture and record the blocker.
+
+MY FEATURE BRANCH
+feature/anamika-dashboard
+
+YOUR RESPONSIBILITY
+Own web/, docs/DEMO.md, docs/evidence/, docs/status/anamika.md and UI smoke checks under web/. Implement one dashboard against Devananda's documented API; do not create a second backend or change hazard science.
+
+START CODING
+1. Create a React/Vite dashboard with Leaflet and a fixture adapter matching ForecastBundle v1. Keep fixture and API adapters interchangeable so you can work immediately. Include observed versus forecast panels, a time slider, play/pause, supported-lead selector, source/status cards and a compact hazard panel. Begin with a working page; avoid spending the first session on branding.
+2. Show an unavoidable mode badge: synthetic demo, archived replay, persistence baseline or model inference. Distinguish event time, issue time and replay clock; use UTC internally and clearly labelled IST for display if useful. Show dataset region and native/effective grid spacing when known. Do not label a resampled grid as proven 1 km accuracy.
+3. Overlay forecasts and hazard GeoJSON only when valid bounds/coordinates exist. Unknown geography gets an image view and an explanation, not an invented Indian overlay. Keep any genuine US SEVIR scene over its real region. Provide a neutral coordinate frame when basemap tiles are unavailable; the core local demo must not require live map tiles. Attribute the map provider when used.
+4. Use status unavailable for unsupported hail, lightning, downburst and cloudburst outputs. Display null probability as Not available, never 0 percent or Safe. Show a VIL proxy with its actual meaning, method and encoding. Confidence appears only when a calibrated value and method are supplied; otherwise display input quality and limitations. +90 minutes and 3/6 hours remain disabled with reasons if unsupported.
+5. A countdown is derived from estimated_arrival_utc against the correct replay/current clock, and stops or becomes unavailable when the estimate is invalid. Include a stale-data warning and loading/error states. Do not fabricate storm areas, Indian observations or countdowns for presentation screenshots. Synthetic geography must remain visibly illustrative.
+6. When Devananda's API is ready, replace the fixture adapter through configuration and verify the same interface. Capture screenshots and a short local walkthrough only after the integrated mode and provenance are visible. Provide a 2-minute demo script, explaining what works, the supported horizon and what remains proposed. Keep full-size videos outside Git; commit lightweight evidence or a stable release link.
+
+ACCEPTANCE AND HANDOFF
+Deliver npm install or npm ci instructions, lockfile, tested build command, VITE_API_BASE_URL example and graceful API-offline behaviour. Check the time slider, unavailable/null hazards, stale input, unknown geolocation and missing map tiles. Verify a normal laptop viewport without clipped controls. Push your branch, open a PR to develop and record commit, commands, screenshots, UI checks and blockers. Build the interface now; do not respond only with a design plan.

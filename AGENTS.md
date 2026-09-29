@@ -1,5 +1,8 @@
 # Project instructions
-Project leader @shawnmbindosh2006-ai; coordinator @manishj2007. Read docs/TEAM.md and docs/CONTRACT.md. Only four assigned contributors build the prototype; leader handles pitch and oversight.
-Work in your assigned paths on your own feature branch from develop. Do not overwrite others' uncommitted work. Coordinate shared interfaces and dependency changes through Manish. Never merge into main, publish a release, add paid compute, expose secrets or change scientific claims without leader approval.
-Use a reproducible fixture first. No fabricated weather data, probabilities, geolocation, live status or unsupported forecast horizon. Synthetic/replay/baseline/model modes must be distinct. VIL is not rainfall in mm/h. Indian transfer and hazard skill require actual validation.
-Commit meaningful checkpoints; push and open a PR only when GitHub access exists. Do not claim remote actions succeeded without verification. Every handoff includes exact command, data/checkpoint provenance, evidence, tests and limitations. Record blockers in docs/status/ and report to Manish. Do not implement another teammate's module except in an agreed integration fix.
+Read docs/TEAM.md and docs/CONTRACT.md before making changes. Work in your assigned module on a feature branch from develop. Preserve other contributors' work and coordinate shared interfaces and dependencies through reviewed pull requests.
+
+Changes to main and published releases require repository-owner review. Scope changes, paid compute and scientific claims require explicit approval. Do not expose secrets or bypass the review process.
+
+Use a reproducible fixture first. Do not fabricate weather observations, probabilities, geolocation, live status or unsupported forecast horizons. Synthetic, replay, baseline and model modes must remain distinct. VIL is not rainfall in mm/h. Indian transfer and hazard skill require actual validation.
+
+Commit meaningful checkpoints. Verify pushes and pull requests before reporting success. Each handoff includes exact commands, data and checkpoint provenance, evidence, checks and limitations. Record blockers in docs/status/. Modify another contributor's module only for an agreed integration change.

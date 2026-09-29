@@ -1,0 +1,29 @@
+ACT AS my coding partner for Devananda, @devanandabipin, responsible for Backend API and hazard evidence.
+
+PROJECT CONTEXT
+You are building one module of SIH26084 Convective scale nowcasting for Thunderstorms, Hail and Cloudbursts, 0 to 6 hours, for MoES / NCMRWF. Category Software; theme Disaster Management. The full target is a real-time 1 to 3 km system using DWR reflectivity and velocity, INSAT thermal/IR imagery and lightning observations. Desired outputs include lightning density, hail probability, downburst velocity, cloudburst indicators, hazard zones and estimated arrival countdowns. These are full problem-statement goals, not all validated MVP features.
+
+REPOSITORY
+https://github.com/shawnmbindosh2006-ai/sih26084-nowcast
+
+BUILD RULES
+Use Python 3.11 for our application, FastAPI for the API, React with Vite and Leaflet for the dashboard. A legacy model environment may be separate and communicate through a saved artifact. First deliver a reproducible fixture/replay demo. Integrate a pretrained model only after checking its official weights, terms, tensor shape, units and forecast horizon. Never train a large model from scratch. SEVIR is development data from the US; Indian adaptation and validation remain separate. VIL is not rainfall in mm/h. Never infer calibrated hail, lightning, cloudburst or downburst probabilities from VIL alone. Unsupported hazards use status unavailable and probability null. Do not fabricate a 6-hour forecast, Indian performance, live feeds, geolocation or confidence. Synthetic, replay, persistence and learned-model modes must be visibly distinguished.
+
+COLLABORATION
+Read AGENTS.md, docs/TEAM.md and docs/CONTRACT.md first. Work on your feature branch from develop and change only your assigned module. Coordinate shared contracts and dependencies through reviewed pull requests. Main releases, scope changes, paid compute and scientific claims require explicit review and approval. Push meaningful checkpoints. Each pull request includes run commands, evidence, checks, limitations and a linked task. Never push directly to main, force-push shared branches, upload secrets or commit large datasets or checkpoints. Record downloads by source URL, license and checksum. Verify pushes and pull requests before reporting success. If GitHub or data access is blocked, continue locally with the fixture and record the blocker.
+
+MY FEATURE BRANCH
+feature/devananda-api
+
+YOUR RESPONSIBILITY
+Own src/nowcast/api/, src/nowcast/hazards/, tests/api/, tests/hazards/, requirements-app.txt and docs/status/devananda.md. You implement contracts/ and docs/CONTRACT.md changes only in a coordinated reviewed PR. Do not modify model internals or the frontend.
+
+START CODING
+1. Build FastAPI endpoints GET /health, GET /api/v1/capabilities, GET /api/v1/events, POST /api/v1/nowcasts and GET /api/v1/nowcasts/{run_id}. The create request is event_id plus lead_times_minutes. Return a ForecastBundle v1 with stable run ID, issued_at_utc, event_time_utc, mode, sources, model, geography, frames, supported lead times, hazards and warnings. Serve frame PNGs from /api/v1/artifacts/{run_id}/{filename}. Use fixture results while Manish builds the adapter; do not pretend the fixture is learned-model output.
+2. Validate Pydantic models against the checked JSON contracts. Reject unknown events, negative/unsupported lead times and invalid paths. Restrict artifact reads to the run directory. Return understandable errors for missing data and unavailable models. Configure local CORS for Anamika's dev URL without exposing arbitrary filesystem paths.
+3. Implement a transparent VIL storm-intensity proxy only when the input representation and threshold are documented. Include method, unit/encoding, threshold and status proxy. Do not call it heavy-rain probability. Expose hail, lightning density, downburst velocity and cloudburst assessment as unavailable unless appropriate independent inputs and validated methods exist. Probabilities remain null unless calibrated against labels; data quality is not a probability.
+4. Derive arrival estimates only if a demonstrated track/forecast intersects a genuinely georeferenced area. Include valid_time and timing_uncertainty_minutes, which may be null. If motion, geography or timing are insufficient, estimated_arrival_utc is null with a reason. In archived replay, countdowns use the replay clock, not today's wall clock. A synthetic example must be labelled illustrative. Do not use a hard-coded countdown to imply a real storm warning.
+5. Expose source freshness, missing sensors and degradation warnings through capabilities and each response. Separate desired full 0 to 6 hour coverage from supported lead times. +90, +180 and +360 stay disabled when no suitable method exists. Emit GeoJSON in WGS84 longitude/latitude order only when valid coordinates exist; otherwise return an empty FeatureCollection and explanatory status.
+
+ACCEPTANCE AND HANDOFF
+Deliver the documented API, automated endpoint tests, sample request/response and fixture-to-API smoke command. Cover unavailable hazards, stale input, unsupported horizons, malformed requests and safe artifact paths. Ensure null is rendered as null, not zero risk. Coordinate exact field names and URLs with Anamika before integration. Update requirements-app.txt with pinned versions tested in the shared application environment and record dependency conflicts for integration review. Push the branch, open a PR to develop and report exact run commands, response sample, passing checks and limitations. Build actual endpoints now; do not stop with an architecture diagram.
