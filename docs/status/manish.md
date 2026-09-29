@@ -89,7 +89,8 @@ Next step and ETA:
   `PersistenceNowcaster.predict(event, [30, 60])` opened only `observed.npy`
   and `quality-mask.npy`. It produced two `[32,32]` last-frame copies with
   valid times 01:25 and 01:55 UTC and preserved mode, units, sources and grid.
-- Integration blocker: the model adapter validates mask shape but does not
+- Integration blocker found at review (resolved by the follow-up below): the
+  model adapter validated mask shape but did not
   honor the mask values. The final observation's invalid cell `(0,0)` is stored
   as numeric zero in both output arrays, which can be misread as a real zero.
   The data branch documents `True=valid`; contract v1 does not define mask
@@ -100,3 +101,31 @@ Next step and ETA:
 - PR #3 is suitable for peer review of the data module. Merge approval should
   account for the mask convention and track the model-side follow-up; no merge
   was performed in this review.
+
+## Persistence quality mask fix (2026-09-29)
+
+- Branch: `feature/manish-model`; implementation commit: `5659068`.
+- `quality_mask=True` means valid. The last observed mask is broadcast from
+  `[T,H,W]` or `[T,H,W,1]` to all channels, or applied per channel when its
+  shape is `[T,H,W,C]`. Nonboolean masks are rejected.
+- Invalid pixels are written as `NaN` in every forecast `.npy` plane. Valid
+  numeric zeros remain zero. Integer observed arrays produce floating forecast
+  artifacts so missingness can be represented. No future target array is read.
+- Exact model test command:
+
+  ```powershell
+  $env:PYTHONPATH = (Join-Path (Get-Location) 'src')
+  .\.venv\Scripts\python.exe -B -m unittest discover -s tests -p 'test_*.py' -v
+  ```
+
+- Result: 16/16 model and evaluation tests passed in 0.228 seconds on Python
+  3.11.9 / NumPy 2.1.3. The previously generated Harinandana synthetic fixture
+  produced one `NaN` at its invalid cell for both +30 and +60 minutes; all
+  valid pixels matched the last observed frame, including 16 valid zeros.
+- Data module, contract, API and dashboard files were unchanged. Forecast
+  rendering is not yet tested; any consumer must treat `NaN` as missing. The
+  current evaluation helper rejects nonfinite arrays until callers exclude
+  masked cells explicitly.
+- Harinandana's draft PR #3 can proceed through peer review for a merge into
+  `develop`; this model-side defect is resolved on the separate model branch.
+  Neither PR was merged here.
