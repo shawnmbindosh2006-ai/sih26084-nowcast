@@ -58,7 +58,8 @@ Blockers:
 - The official Earthformer checkpoint endpoint returned HTTP 403 on 2026-09-29.
   Separate checkpoint terms and SHA256 therefore remain unverified.
 - A versioned array-bearing fixture with channel/unit/timestamp/provenance
-  handshake is still needed from the data module.
+  handshake was needed from the data module; see the review below for the
+  verified synthetic fixture.
 - API artifact registration/serving and dashboard image/error-state behavior
   remain integration dependencies.
 
@@ -67,3 +68,35 @@ Next step and ETA:
   endpoint and add the combined launch scripts. Checkpoint B model work resumes
   only after an official, terms-cleared checkpoint source is approved; no ETA is
   claimed while access is blocked.
+
+## Data/model handshake review (2026-09-29)
+
+- Harinandana branch: `origin/feature/harinandana-data` at `a2ed0e8`.
+- Her draft PR #3 is open against `develop`, with no GitHub checks configured:
+  https://github.com/shawnmbindosh2006-ai/sih26084-nowcast/pull/3
+- Reviewed the loader, fixture generator, data tests, data configs, access and
+  provenance docs, status handoff, and unchanged contract without merging.
+- In an isolated checkout, her documented data tests passed 22/22 on Python
+  3.11.9 / NumPy 2.1.3. Her fixture generation and validation commands passed.
+- The generated observed array is `float32 [12,32,32,1]`, with
+  `demo_intensity` in `arbitrary_demo_units`, 300-second strictly increasing UTC
+  cadence, a boolean `[12,32,32,1]` mask, and null spacing/CRS/bounds.
+  Observed SHA256: `ce62b73e0788abe1017e345ebfbd84f5a14e6b6d8660d09f4f0b317b6a54141b`.
+- Her loader returned exactly the EventBundle v1 fields and absolute paths for
+  observed and mask arrays. Four synthetic future frames were stored separately
+  in `evaluation-targets.npy` and referenced only by `evaluation.json`.
+- A traced cross-branch call to `load_event(...)` then
+  `PersistenceNowcaster.predict(event, [30, 60])` opened only `observed.npy`
+  and `quality-mask.npy`. It produced two `[32,32]` last-frame copies with
+  valid times 01:25 and 01:55 UTC and preserved mode, units, sources and grid.
+- Integration blocker: the model adapter validates mask shape but does not
+  honor the mask values. The final observation's invalid cell `(0,0)` is stored
+  as numeric zero in both output arrays, which can be misread as a real zero.
+  The data branch documents `True=valid`; contract v1 does not define mask
+  polarity or an output mask. Agree the convention, then make a small model-side
+  fix to preserve invalid pixels (for example, an explicit missing sentinel
+  interpreted by rendering and evaluation) and test it before claiming a clean
+  forecast display or skill computation. No data-module rewrite is indicated.
+- PR #3 is suitable for peer review of the data module. Merge approval should
+  account for the mask convention and track the model-side follow-up; no merge
+  was performed in this review.
