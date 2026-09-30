@@ -58,6 +58,14 @@ provider is present on this develop checkpoint. Manish's separate
 interface is wired lazily and will only appear in capabilities when its module
 and pySTEPS APIs load.
 
+Implementation checkpoint: `690e3b471e0b2aa90ce379127e3cd30a6132d365`
+(`Add capability-driven forecast method routing`).
+Pushed to `origin/feature/devananda-method-api`. A PR has not been created:
+`gh` is unavailable and the GitHub browser session is signed out, so the private
+repository's PR page returns 404. The authenticated repository owner can open
+https://github.com/shawnmbindosh2006-ai/sih26084-nowcast/pull/new/feature/devananda-method-api
+with base `develop`.
+
 Implemented capability-driven method selection for fixture, persistence, and
 optional optical flow. Omitted method behavior is preserved. Explicit optical
 flow is rejected with HTTP 422 unless an EventBundle and usable provider are
