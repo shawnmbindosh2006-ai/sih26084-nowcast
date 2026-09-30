@@ -114,3 +114,31 @@ transparent invalid PNG pixels, opaque valid-zero pixels and traversal rejection
 
 Request peer review of PR #7. It is technically ready for merge consideration
 after that review, but must not be merged automatically.
+
+## Optical-flow upgrade branch (2026-09-30)
+
+Branch `feature/manish-optical-flow` starts from accepted fallback baseline
+`e4660e4`. It adds a separate `OpticalFlowNowcaster` using pySTEPS 1.21.5
+Lucas--Kanade motion and semilagrangian advection for +30/+60 only. Persistence
+is unchanged and remains the control and honest runtime fallback.
+
+The provider reads the validated observed EventBundle boundary `[T,H,W,C]`
+only. It preserves channel names/units, UTC valid times, grid/source provenance,
+True=valid quality-mask semantics, invalid pixels as `NaN`, and valid numeric
+zeros. Evaluation targets are not accepted by `predict()`.
+
+Windows preflight found that PyPI distributes pySTEPS 1.21.5 as source and pip
+requires MSVC 14+, which is absent on the test laptop. The verified path is the
+official prebuilt conda-forge package in an isolated Python 3.11 environment;
+the frozen pip persistence requirements were intentionally not changed. Setup,
+interfaces and scientific limitations are recorded in `docs/OPTICAL_FLOW.md`.
+
+Evaluation preparation adds a mask-aware named-method comparison for CSI, MAE
+and RMSE. It records event, method, lead, threshold and valid sample counts.
+No FSS was added, and no threshold was selected as evidence of superiority.
+
+This branch does not expose optical flow through FastAPI or the dashboard and
+does not change `docs/CONTRACT.md`. The `optical_flow` method identifier remains
+a proposed coordinated contract extension for Devananda's method-routing work.
+Real skill comparison waits on Harinandana's MRMS observations and separately
+stored future truth; synthetic tests prove plumbing only.

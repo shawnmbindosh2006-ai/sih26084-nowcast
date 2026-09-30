@@ -7,6 +7,13 @@ from .persistence import (
     UnsupportedLeadTimeError,
     predict,
 )
+from .optical_flow import (
+    DEFAULT_HISTORY_FRAMES,
+    OPTICAL_FLOW_SUPPORTED_LEAD_TIMES_MINUTES,
+    OpticalFlowNowcaster,
+    OpticalFlowPersistenceRouter,
+    OpticalFlowRuntimeError,
+)
 
 __all__ = [
     "DEFAULT_SUPPORTED_LEAD_TIMES_MINUTES",
@@ -14,4 +21,9 @@ __all__ = [
     "PersistenceNowcaster",
     "UnsupportedLeadTimeError",
     "predict",
+    "DEFAULT_HISTORY_FRAMES",
+    "OPTICAL_FLOW_SUPPORTED_LEAD_TIMES_MINUTES",
+    "OpticalFlowNowcaster",
+    "OpticalFlowPersistenceRouter",
+    "OpticalFlowRuntimeError",
 ]
