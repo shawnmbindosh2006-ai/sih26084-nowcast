@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 import os
 import re
@@ -26,7 +27,7 @@ RUNS_DIR = Path(os.environ.get("NOWCAST_RUNS_DIR", str(ROOT / "runs"))).resolve(
 ALLOWED_LEADS = {15}
 PERSISTENCE_LEADS = {30, 60}
 ARTIFACT_NAME = "illustrative-frame.png"
-RUN_ID_PATTERN = re.compile(r"^(?:[0-9a-f]{32}|persistence-[0-9a-f]{32})$")
+RUN_ID_PATTERN = re.compile(r"^(?:[0-9a-f]{32}|(?:persistence|optical-flow)-[0-9a-f]{32})$")
 ARTIFACT_PATTERN = re.compile(r"^(?:illustrative-frame\.png|lead-[0-9]{3}-channel-[0-9]{2}\.(?:npy|png))$")
 PERSISTENCE_EVENT_PATH = Path(os.environ["NOWCAST_EVENT_PATH"]).resolve() if os.environ.get("NOWCAST_EVENT_PATH") else None
 
@@ -53,6 +54,18 @@ def _persistence_registration() -> tuple[str, dict] | None:
     if len(public_id) > 128:
         raise HTTPException(status_code=503, detail="The configured persistence event ID is too long.")
     return public_id, event
+
+
+def _optical_flow_provider_class():
+    """Return Manish's provider only when its implementation and runtime work."""
+    try:
+        module = importlib.import_module("nowcast.models.optical_flow")
+        # The provider loads these exact APIs lazily during prediction. Check them
+        # here too so capabilities never advertise an unusable optional method.
+        module._load_pysteps()
+    except (ImportError, ModuleNotFoundError, RuntimeError):
+        return None
+    return module.OpticalFlowNowcaster
 
 
 def _create_persistence_nowcast(event: dict, public_id: str, lead_times: list[int]) -> dict:
@@ -140,8 +153,8 @@ class NowcastRequest(BaseModel):
     @field_validator("forecast_method")
     @classmethod
     def validate_method(cls, value: str | None) -> str | None:
-        if value not in (None, "fixture", "persistence"):
-            raise ValueError("forecast_method must be fixture or persistence")
+        if value not in (None, "fixture", "persistence", "optical_flow"):
+            raise ValueError("forecast_method must be fixture, persistence, or optical_flow")
         return value
 
 
@@ -192,6 +205,13 @@ def capabilities() -> dict:
                 "persistence": {"event_id": public_id, "supported_lead_times_minutes": sorted(PERSISTENCE_LEADS)},
             },
         })
+        optical_flow_class = _optical_flow_provider_class()
+        if optical_flow_class is not None:
+            result["forecast_methods"].append("optical_flow")
+            result["available_pipelines"]["optical_flow"] = {
+                "event_id": public_id,
+                "supported_lead_times_minutes": [30, 60],
+            }
     return result
 
 
@@ -212,6 +232,47 @@ def create_nowcast(request: NowcastRequest) -> dict:
     registration = _persistence_registration()
     persistence_id = registration[0] if registration else None
     source_id = registration[1]["event_id"] if registration else None
+    if request.forecast_method == "optical_flow":
+        if not registration:
+            raise HTTPException(status_code=422, detail="Optical flow requires a configured EventBundle.")
+        provider_class = _optical_flow_provider_class()
+        if provider_class is None:
+            raise HTTPException(status_code=422, detail="Optical-flow provider is unavailable on this server.")
+        if request.event_id not in {persistence_id, source_id}:
+            raise HTTPException(status_code=422, detail="Optical flow is available only for the configured EventBundle.")
+        unsupported = sorted(set(request.lead_times_minutes) - {30, 60})
+        if unsupported:
+            raise HTTPException(status_code=422, detail=f"Unsupported optical-flow leads: {unsupported}; supported=[30, 60]")
+        try:
+            inference_event = {**registration[1], "event_id": persistence_id}
+            bundle = provider_class(
+                artifact_root=RUNS_DIR,
+                supported_lead_times_minutes=[30, 60],
+            ).predict(inference_event, request.lead_times_minutes)
+        except (ImportError, RuntimeError) as exc:
+            raise HTTPException(status_code=503, detail=f"Optical-flow provider failed: {exc}") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=f"Optical-flow input is unsupported: {exc}") from exc
+        run_id = bundle.get("run_id", "")
+        run_dir = (RUNS_DIR / run_id).resolve()
+        if not RUN_ID_PATTERN.fullmatch(run_id) or run_dir.parent != RUNS_DIR:
+            raise HTTPException(status_code=500, detail="Optical-flow provider returned an invalid run identity.")
+        for frame in bundle.get("frames", []):
+            numeric_url = frame.get("image_url", "")
+            numeric_name = urlsplit(numeric_url).path.rsplit("/", 1)[-1]
+            if not ARTIFACT_PATTERN.fullmatch(numeric_name) or not numeric_name.endswith(".npy"):
+                raise HTTPException(status_code=500, detail="Optical-flow provider returned an invalid artifact name.")
+            png_name = numeric_name[:-4] + ".png"
+            frame["display"] = write_display_png(run_dir / numeric_name, run_dir / png_name)
+            frame["numeric_array_url"] = numeric_url
+            frame["numeric_url"] = numeric_url
+            frame["image_url"] = f"/api/v1/artifacts/{run_id}/{png_name}"
+        bundle["source_event_id"] = source_id
+        bundle.setdefault("warnings", []).append(
+            "PNG frames are deterministic grayscale previews; numeric NumPy arrays retain original values and NaN masks."
+        )
+        (run_dir / "bundle.json").write_text(json.dumps(bundle, indent=2, allow_nan=False), encoding="utf-8")
+        return bundle
     wants_persistence = registration and (
         request.event_id == persistence_id
         or (request.event_id == source_id and request.forecast_method != "fixture" and request.lead_times_minutes != [15])
