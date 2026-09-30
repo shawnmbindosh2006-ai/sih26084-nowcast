@@ -78,18 +78,22 @@ def load_event(path: str | Path, *, expected_channels: dict[str, str] | None = N
         gaps = [(b-a).total_seconds() for a, b in zip(parsed, parsed[1:])]
         require(all(g > 0 for g in gaps), "timestamps must be strictly increasing")
         cadence = expected_cadence_seconds
+        allowed_jitter_seconds = 0.0
         if cadence is not None:
             require(np.isfinite(cadence) and cadence > 0, "cadence must be positive")
         elif gaps:
-            cadence = gaps[0]
-        require(all(g == cadence for g in gaps), "cadence gap; no implicit interpolation")
+            cadence = float(np.median(gaps))
+            allowed_jitter_seconds = 30.0
+        require(all(abs(g - cadence) <= allowed_jitter_seconds for g in gaps),
+                "cadence gap; no implicit interpolation")
         require(utc(event["event_time_utc"]) == parsed[-1], "event_time_utc must be last observation")
         names, units = event["channel_names"], event["channel_units"]
         require(isinstance(names, list) and isinstance(units, list) and
                 len(names) == len(units) == observed.shape[3], "missing channel or unit")
         require(all(isinstance(v, str) and bool(v.strip()) for v in names + units), "empty channel/unit")
         require(len(set(names)) == len(names), "duplicate channel")
-        known = {"demo_intensity": "arbitrary_demo_units", "vil": "SEVIR_encoded_VIL"}
+        known = {"demo_intensity": "arbitrary_demo_units", "vil": "SEVIR_encoded_VIL",
+                 "reflectivity": "dBZ"}
         for name, unit in zip(names, units):
             require(name not in known or unit == known[name], f"incompatible units for {name}")
         require("demo_intensity" not in names or event["mode"] == "synthetic", "demo channel requires synthetic mode")

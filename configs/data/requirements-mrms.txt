@@ -1,0 +1,2 @@
+# Optional bounded-MRMS replay decoder. Keep this out of the core application runtime.
+eccodes==2.48.0

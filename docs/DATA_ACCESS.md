@@ -59,6 +59,42 @@ Investigation result: catalog 33,838,047 bytes (downloaded and hashed); selected
 VIL container 3,908,920,610 bytes (HEAD only, download blocked by budget).
 See `configs/data/sevir-manifest.json`. No HDF5 data was fetched.
 
+## NOAA MRMS archived replay
+
+The MRMS command fetches one fixed, six-frame, public CONUS sequence of
+`MergedReflectivityQCComposite_00.50` files from 2020-10-14. It is US archived
+replay data, not a live feed, an Indian observation, precipitation, or a
+forecast. The product carries reflectivity in `dBZ`, which remains its channel
+unit. Four frames become observed input and the following two become archived
+future truth in a separate file.
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r configs/data/requirements-mrms.txt
+$env:PYTHONPATH = Join-Path (Get-Location) 'src'
+.\.venv\Scripts\python.exe -m nowcast.data.mrms runs/mrms-replay
+.\.venv\Scripts\python.exe -m nowcast.data validate runs/mrms-replay/event.json
+```
+
+The default total compressed download ceiling is 10,000,000 bytes. The command
+HEADs every object before transfer, rejects a sequence beyond that ceiling, and
+records object URLs, sizes, SHA256 values, timestamps, output hashes and crop
+metadata in `runs/mrms-replay/manifest.json`. The raw GRIB2 files and generated
+arrays are intentionally ignored by Git. `configs/data/mrms-replay.json` records
+the fixed selection and budget without pretending those values are downloaded.
+
+GRIB2 decoding uses optional `eccodes`; it retains missing bitmap/sentinel values
+in a boolean mask (`True=valid`) and stores a zero placeholder only where the mask
+is false. The output is a 128x128 native-grid crop with no resampling. Its WGS84
+bounds, row/column start, angular increments, scan direction and full-grid shape
+come from GRIB metadata. `native_spacing_km` stays null because the product grid
+is angular and this module does not invent a kilometre spacing. `evaluation.json`
+is deliberately excluded by `load_event` and inference consumers.
+
+The loader preserves MRMS source seconds. When callers do not declare an exact
+cadence, it derives the median interval and permits at most 30 seconds of source
+timestamp jitter; larger gaps still fail. Supplying `expected_cadence_seconds`
+keeps exact cadence validation.
+
 ## India adapter path (primary documentation checked 2026-09-29)
 
 All three adapters in `nowcast.data.india` explicitly return unavailable source

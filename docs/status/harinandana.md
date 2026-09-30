@@ -4,8 +4,8 @@ Owner: @bluebvrrie
 Role: Data ingestion and sensor harmonisation
 Branch: feature/harinandana-data
 
-Status: fixture/loader implemented; source investigation complete within budget;
-peer integration review required. Scientific validation unavailable.
+Status: synthetic/SEVIR work retained; bounded NOAA MRMS archived replay implemented
+and locally verified. Peer integration review required; scientific validation unavailable.
 
 Done:
 - Added observed-only `load_event(path)` returning EventBundle v1 as a dictionary.
@@ -14,6 +14,9 @@ Done:
 - Preserved original fixture illustration and all model/API/shared paths.
 - Bounded SEVIR probe and committed catalog/object provenance manifests.
 - Indian adapter stubs and primary-source access/calibration plan documented.
+- Added a fixed six-file NOAA MRMS CONUS archived replay: four observed frames,
+  two separate future-truth frames, dBZ reflectivity, native-grid crop, quality
+  mask and generated object/output checksum manifest. No raw data is committed.
 
 Commit and PR:
 - Implementation checkpoint a974c2b03c24b8b068fa14defe0bf4e249aa2c4b pushed and
@@ -33,6 +36,10 @@ $dataPython = 'C:\Users\asros\.cache\codex-runtimes\codex-primary-runtime\depend
 & $dataPython -m nowcast.data generate runs/data-fixture
 & $dataPython -m unittest discover -s tests/data -v
 & $dataPython -m nowcast.data.sevir runs/sevir-public-probe --download
+& $dataPython -m pip install --target runs/mrms-python eccodes==2.48.0
+$env:PYTHONPATH = (Join-Path (Get-Location) 'runs/mrms-python') + ';' + (Join-Path (Get-Location) 'src')
+& $dataPython -m nowcast.data.mrms runs/mrms-replay-complete
+& $dataPython -m nowcast.data validate runs/mrms-replay-complete/event.json
 ```
 
 Evidence and checks:
@@ -49,10 +56,22 @@ Evidence and checks:
   Container data/vil/2019/SEVIR_VIL_STORMEVENTS_2019_0701_1231.h5 at index 421
   is 3,908,920,610 bytes. HEAD only; blocked by 1 GB budget. Container checksum
   remains null. See configs/data/sevir-manifest.json for the exact row and URL.
+- MRMS replay completed from the public `noaa-mrms-pds` bucket on 2026-09-30.
+  Six compressed GRIB2 objects total 7,271,135 bytes, below the 10,000,000-byte
+  ceiling. The generated manifest records source URLs and SHA256 values.
+- Loaded event: `[4,128,128,1]`, `reflectivity` / `dBZ`, source UTC
+  2020-10-14T00:00:22Z–00:06:31Z; future truth is separately stored for
+  00:08:32Z and 00:10:27Z. Grid is genuine CONUS EPSG:4326 crop bounds
+  [-95.635, 36.865, -94.365, 38.135]; native spacing remains null because MRMS
+  declares an angular 0.01-degree grid and no km conversion is invented.
+- `python -m nowcast.data validate runs/mrms-replay-complete/event.json` passed;
+  24/24 data tests passed in 0.699 s on Python 3.12.14 / NumPy 2.3.5.
 
 Blockers and limitations:
-- No inference-ready real replay event: selected HDF5 is over budget. No request
-  to increase budget or purchase/access accounts was made.
+- The MRMS replay is US archived data only. It supports ingestion/integration
+  evidence, not Indian transfer, real-time operation, forecast skill or hazards.
+- The selected SEVIR HDF5 remains over budget. No request to increase budget or
+  purchase/access accounts was made.
 - No approved checkpoint/terms/hash: learned normalization remains unimplemented,
   raw representation stays explicit; no VIL-to-rainfall or hazard claim.
 - Indian readers remain unavailable pending permitted samples, terms, calibration
@@ -67,6 +86,6 @@ Blockers and limitations:
   pushed and created/verified the draft PR through GitHub's REST API. No
   credentials were printed or saved. The PR links the repository task prompt.
 
-Next step: Manish reviews mask/channel conventions and dependency reconciliation,
-runs target Python 3.11 checks and coordinates the model/API handoff. No ETA for
-real feeds or scientific validation while access/checkpoint dependencies remain.
+Next step: Manish reviews `reflectivity`/`dBZ` and mask handling, reconciles the
+optional ecCodes environment, runs target Python 3.11 checks and coordinates the
+model/API handoff. No ETA for Indian feeds or scientific validation.
