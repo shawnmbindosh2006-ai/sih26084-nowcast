@@ -1,0 +1,19 @@
+{
+  "source": "NOAA MRMS public S3",
+  "source_url": "https://noaa-mrms-pds.s3.amazonaws.com/",
+  "product": "MergedReflectivityQCComposite_00.50",
+  "region": "CONUS, United States",
+  "mode": "archived_replay",
+  "default_download_budget_bytes": 10000000,
+  "observed_frame_count": 4,
+  "future_truth_frame_count": 2,
+  "crop": "128x128 native-grid pixels centred in the source grid; no resampling",
+  "selected_keys": [
+    "CONUS/MergedReflectivityQCComposite_00.50/20201014/MRMS_MergedReflectivityQCComposite_00.50_20201014-000022.grib2.gz",
+    "CONUS/MergedReflectivityQCComposite_00.50/20201014/MRMS_MergedReflectivityQCComposite_00.50_20201014-000239.grib2.gz",
+    "CONUS/MergedReflectivityQCComposite_00.50/20201014/MRMS_MergedReflectivityQCComposite_00.50_20201014-000438.grib2.gz",
+    "CONUS/MergedReflectivityQCComposite_00.50/20201014/MRMS_MergedReflectivityQCComposite_00.50_20201014-000631.grib2.gz",
+    "CONUS/MergedReflectivityQCComposite_00.50/20201014/MRMS_MergedReflectivityQCComposite_00.50_20201014-000832.grib2.gz",
+    "CONUS/MergedReflectivityQCComposite_00.50/20201014/MRMS_MergedReflectivityQCComposite_00.50_20201014-001027.grib2.gz"
+  ]
+}
