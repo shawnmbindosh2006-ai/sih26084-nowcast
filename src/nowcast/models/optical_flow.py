@@ -11,6 +11,7 @@ import copy
 import importlib.metadata
 import os
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
@@ -32,6 +33,15 @@ DEFAULT_HISTORY_FRAMES = 3
 
 class OpticalFlowRuntimeError(RuntimeError):
     """Raised when the pySTEPS motion/extrapolation runtime cannot forecast."""
+
+
+@dataclass(frozen=True)
+class OpticalFlowReadiness:
+    """Public, side-effect-free result used by API capability discovery."""
+
+    available: bool
+    version: str | None = None
+    reason: str | None = None
 
 
 def _empty_zones() -> dict[str, Any]:
@@ -67,6 +77,26 @@ def _load_pysteps() -> tuple[str, Callable[..., np.ndarray], Callable[..., np.nd
     except importlib.metadata.PackageNotFoundError as exc:
         raise OpticalFlowRuntimeError("the installed pySTEPS version cannot be verified") from exc
     return version, dense_lucaskanade, extrapolate
+
+
+def optical_flow_readiness(event: Mapping[str, Any] | None = None) -> OpticalFlowReadiness:
+    """Report whether the runtime, and optionally an EventBundle, are usable.
+
+    This is the supported capability-probe boundary.  It performs validation
+    and imports the optional runtime but never creates artifacts or forecasts.
+    """
+
+    try:
+        version, _, _ = _load_pysteps()
+        if event is not None:
+            provider = OpticalFlowNowcaster()
+            validated = provider._validator._validate_event(event)
+            provider._cadence_minutes(event)
+            if validated.observed.shape[0] < 2:
+                raise EventValidationError("optical flow requires at least two observed frames")
+    except (EventValidationError, OpticalFlowRuntimeError, OSError, ValueError) as exc:
+        return OpticalFlowReadiness(False, reason=str(exc))
+    return OpticalFlowReadiness(True, version=version)
 
 
 def _broadcast_quality_mask(
@@ -116,15 +146,20 @@ class OpticalFlowNowcaster:
         ]
         if len(parsed) < 2:
             raise EventValidationError("optical flow requires at least two observed frames")
-        gaps = [
-            (following - current).total_seconds() / 60.0
+        gaps_seconds = [
+            (following - current).total_seconds()
             for current, following in zip(parsed, parsed[1:])
         ]
-        if gaps[0] <= 0 or not np.allclose(gaps, gaps[0], rtol=0.0, atol=1e-9):
+        if any(gap <= 0 for gap in gaps_seconds):
             raise EventValidationError(
-                "optical flow requires a positive, uniform observation cadence"
+                "optical flow requires a positive observation cadence"
             )
-        return gaps[0]
+        cadence_seconds = float(np.median(gaps_seconds))
+        if max(abs(gap - cadence_seconds) for gap in gaps_seconds) > 30.0:
+            raise EventValidationError(
+                "optical flow requires observation gaps within 30 seconds of the median cadence"
+            )
+        return cadence_seconds / 60.0
 
     @staticmethod
     def _advect_channel(
@@ -301,5 +336,7 @@ __all__ = [
     "OPTICAL_FLOW_SUPPORTED_LEAD_TIMES_MINUTES",
     "OpticalFlowNowcaster",
     "OpticalFlowPersistenceRouter",
+    "OpticalFlowReadiness",
     "OpticalFlowRuntimeError",
+    "optical_flow_readiness",
 ]

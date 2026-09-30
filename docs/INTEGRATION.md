@@ -42,9 +42,11 @@ array, mask, grid and source records are not altered.
 
 Without an EventBundle setting, only the original synthetic +15 fixture is
 available. With an EventBundle, `GET /api/v1/capabilities` advertises persistence
-`[30,60]` as the default and fixture `[15]` as a separate pipeline.
+`[30,60]` as the default and fixture `[15]` as a separate pipeline. It advertises
+optical flow `[30,60]` only when pySTEPS and the configured event pass the public
+provider readiness check.
 `GET /api/v1/events` lists the persistence alias first. `POST
-/api/v1/nowcasts` uses `{event_id,lead_times_minutes}`. Explicit fixture mode
+/api/v1/nowcasts` uses `{event_id,lead_times_minutes,forecast_method?}`. Explicit fixture mode
 cannot select +30/+60, and unsupported leads return 422.
 
 `issued_at_utc` is the API run time. `event_time_utc` is the last observed
@@ -104,9 +106,15 @@ numeric/display artifacts. Harinandana's deterministic integration fixture is
 synthetic `demo_intensity` in `arbitrary_demo_units`, with
 `[12,32,32,1]` observed frames, five-minute UTC cadence and null geography.
 
-The path does not integrate EarthFormer, pySTEPS, LDCast, real sensors,
+The path does not integrate EarthFormer, LDCast, operational sensors,
 calibrated hazards, georeferenced forecast skill or 0–6 hour learned output.
 Run and test commands are in `docs/LOCAL_RUN.md`.
+
+The optional pySTEPS provider is deterministic Lucas--Kanade motion plus
+semilagrangian advection. It preserves variables/units and returns the same
+ForecastBundle/artifact boundary; it is not learned inference. The dashboard
+discovers methods and leads from `available_pipelines` and sends the selected
+method explicitly. Explicit optical-flow failure does not fall back silently.
 
 ## Current merged-baseline verification
 

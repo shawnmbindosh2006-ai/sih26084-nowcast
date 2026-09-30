@@ -82,13 +82,24 @@ metadata in `runs/mrms-replay/manifest.json`. The raw GRIB2 files and generated
 arrays are intentionally ignored by Git. `configs/data/mrms-replay.json` records
 the fixed selection and budget without pretending those values are downloaded.
 
-GRIB2 decoding uses optional `eccodes`; it retains missing bitmap/sentinel values
-in a boolean mask (`True=valid`) and stores a zero placeholder only where the mask
-is false. The output is a 128x128 native-grid crop with no resampling. Its WGS84
+GRIB2 decoding uses optional `eccodes`; it applies the official product-table
+sentinels (`-99` missing and `-999` no coverage) in addition to the GRIB bitmap
+and metadata. Invalid cells are false in the boolean mask (`True=valid`) and use
+a zero storage placeholder whose value is ignored. The output is a fixed 128x128
+native-grid crop selected from the first observed frame only, with no future-target
+selection and no resampling. Its WGS84
 bounds, row/column start, angular increments, scan direction and full-grid shape
 come from GRIB metadata. `native_spacing_km` stays null because the product grid
 is angular and this module does not invent a kilometre spacing. `evaluation.json`
 is deliberately excluded by `load_event` and inference consumers.
+
+Sentinel meanings and the nominal two-minute product frequency come from the
+[official MRMS product table](https://www.nssl.noaa.gov/projects/mrms/operational/tables.php),
+not from an inferred threshold.
+
+The selected future frames are approximately +2.02 and +3.93 minutes relative
+to the last observation. They are useful for ingestion/evaluation plumbing but
+are **not** +30/+60 truth and cannot establish +30/+60 forecast skill.
 
 The loader preserves MRMS source seconds. When callers do not declare an exact
 cadence, it derives the median interval and permits at most 30 seconds of source

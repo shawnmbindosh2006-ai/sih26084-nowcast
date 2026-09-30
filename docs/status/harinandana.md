@@ -57,7 +57,7 @@ Evidence and checks:
   is 3,908,920,610 bytes. HEAD only; blocked by 1 GB budget. Container checksum
   remains null. See configs/data/sevir-manifest.json for the exact row and URL.
 - MRMS replay completed from the public `noaa-mrms-pds` bucket on 2026-09-30.
-  Six compressed GRIB2 objects total 7,271,135 bytes, below the 10,000,000-byte
+  Six compressed GRIB2 objects total 7,279,135 bytes, below the 10,000,000-byte
   ceiling. The generated manifest records source URLs and SHA256 values.
 - Loaded event: `[4,128,128,1]`, `reflectivity` / `dBZ`, source UTC
   2020-10-14T00:00:22Z–00:06:31Z; future truth is separately stored for
@@ -89,3 +89,18 @@ Blockers and limitations:
 Next step: Manish reviews `reflectivity`/`dBZ` and mask handling, reconciles the
 optional ecCodes environment, runs target Python 3.11 checks and coordinates the
 model/API handoff. No ETA for Indian feeds or scientific validation.
+
+## Final integration audit correction (2026-09-30)
+
+The original download/decoder path and observation/target separation were
+retained. Independent inspection found that the source-grid centre crop was
+entirely the product's `-99 dBZ` missing sentinel, which ecCodes did not mark via
+its generic missing-value key. Integration now applies NOAA's documented `-99`
+missing and `-999` no-coverage values and uses a fixed 128x128 crop recorded as
+row 906 / column 4455. The crop was selected from the first observed frame only;
+future targets were not consulted. A real six-object decode produced
+`[4,128,128,1]`, 39.45% valid cells, and valid reflectivity from -4.5 to 62 dBZ.
+
+The future frames are approximately +2.02/+3.93 minutes, not +30/+60. They remain
+separate from inference and can support short-horizon plumbing checks only. No
++30/+60 MRMS skill result is claimed.

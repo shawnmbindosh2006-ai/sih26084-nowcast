@@ -49,3 +49,18 @@ Not tested:
 
 Next step:
 - Verify the integrated capability-driven dashboard against fixture, persistence, and genuinely available optical-flow pipelines.
+
+## Final integration verification (2026-09-30)
+
+The saved-run rendering and scientific-safety helpers from PR #13 were retained
+while the conflicted page was reconciled with develop's live API client. The
+dashboard now consumes `forecast_methods`/`available_pipelines`, uses the events
+inventory, sends `forecast_method` explicitly, displays the method actually
+returned, links the numeric artifact, and never exposes a method or lead absent
+from live capabilities.
+
+Node 24.15.0 ran 17/17 frontend tests. Vite 8.3.1 production build/check passed,
+and `npm audit` reported zero vulnerabilities. A browser smoke against the real
+MRMS-backed API rendered persistence and optical-flow +30/+60 PNGs, numeric links,
+dBZ/replay labels, and unavailable/null hazards without console errors. A second
+fixture-only smoke exposed only Fixture +15; optical flow stayed hidden.

@@ -22,6 +22,9 @@ BASE_URL = "https://noaa-mrms-pds.s3.amazonaws.com/"
 MAX_DOWNLOAD_BYTES = 10_000_000
 PRODUCT = "MergedReflectivityQCComposite_00.50"
 PRODUCT_UNITS = "dBZ"
+PRODUCT_INVALID_VALUES = (-99.0, -999.0)
+DEFAULT_CROP_ROW_START = 906
+DEFAULT_CROP_COL_START = 4455
 DEFAULT_KEYS = (
     "CONUS/MergedReflectivityQCComposite_00.50/20201014/"
     "MRMS_MergedReflectivityQCComposite_00.50_20201014-000022.grib2.gz",
@@ -96,6 +99,20 @@ def _longitude(value: float) -> float:
     return value - 360.0 if value > 180.0 else value
 
 
+def _product_validity(values: np.ndarray, missing_value: object = np.nan) -> np.ndarray:
+    """Apply documented product sentinels in addition to GRIB metadata."""
+
+    valid = np.isfinite(values)
+    try:
+        encoded_missing = float(missing_value)
+    except (TypeError, ValueError):
+        encoded_missing = np.nan
+    if np.isfinite(encoded_missing):
+        valid &= values != encoded_missing
+    valid &= ~np.isin(values, PRODUCT_INVALID_VALUES)
+    return valid
+
+
 def decode_grib(path: str | Path, timestamp_utc: str) -> DecodedFrame:
     """Decode one gzip-compressed MRMS GRIB2 file, retaining the native grid."""
     try:
@@ -125,9 +142,10 @@ def decode_grib(path: str | Path, timestamp_utc: str) -> DecodedFrame:
             units = PRODUCT_UNITS
             values = np.asarray(codes.codes_get_values(handle), dtype=np.float32).reshape(nj, ni)
             missing_value = _get(codes, handle, "missingValue", np.nan)
-            valid = np.isfinite(values)
-            if missing_value is not None and np.isfinite(missing_value):
-                valid &= values != float(missing_value)
+            valid = _product_validity(values, missing_value)
+            # NOAA's product table defines -99 as missing and -999 as no
+            # coverage for this product.  ecCodes does not expose either value
+            # through the GRIB missingValue key for these archived objects.
             bitmap = _get(codes, handle, "bitmapPresent", 0)
             if bitmap:
                 try:
@@ -189,7 +207,9 @@ def _subset_grid(grid: dict[str, object], row_start: int, col_start: int,
 
 
 def write_replay(directory: str | Path, frames: list[DecodedFrame], source_objects: list[dict[str, object]],
-                 crop_height: int = 128, crop_width: int = 128) -> Path:
+                 crop_height: int = 128, crop_width: int = 128,
+                 crop_row_start: int | None = None,
+                 crop_col_start: int | None = None) -> Path:
     """Write a four-observation/two-future EventBundle without target leakage."""
     if len(frames) != 6:
         raise MRMSReplayError("replay requires exactly six frames: four observed and two future")
@@ -205,11 +225,16 @@ def write_replay(directory: str | Path, frames: list[DecodedFrame], source_objec
     rows, cols = reference.values.shape
     if crop_height > rows or crop_width > cols:
         raise MRMSReplayError("crop exceeds MRMS native grid")
-    row_start, col_start = (rows - crop_height) // 2, (cols - crop_width) // 2
+    row_start = (rows - crop_height) // 2 if crop_row_start is None else crop_row_start
+    col_start = (cols - crop_width) // 2 if crop_col_start is None else crop_col_start
+    if row_start < 0 or col_start < 0 or row_start + crop_height > rows or col_start + crop_width > cols:
+        raise MRMSReplayError("configured crop is outside the MRMS native grid")
     data = np.stack([frame.values[row_start:row_start + crop_height, col_start:col_start + crop_width]
                      for frame in frames], axis=0)[..., None]
     valid = np.stack([frame.valid[row_start:row_start + crop_height, col_start:col_start + crop_width]
                       for frame in frames], axis=0)[..., None]
+    if not valid[:4].any():
+        raise MRMSReplayError("observed crop contains no valid reflectivity pixels")
     data[~valid] = 0.0
     root = Path(directory)
     root.mkdir(parents=True, exist_ok=True)
@@ -225,11 +250,18 @@ def write_replay(directory: str | Path, frames: list[DecodedFrame], source_objec
                           "provenance": "NOAA MRMS CONUS archived MergedReflectivityQCComposite; United States data, not Indian observations."}],
              "grid": grid}
     write_json(root / "event.json", event)
+    event_time = datetime.fromisoformat(event["event_time_utc"].replace("Z", "+00:00"))
+    target_leads = [
+        (datetime.fromisoformat(value.replace("Z", "+00:00")) - event_time).total_seconds() / 60.0
+        for value in timestamps[4:]
+    ]
     write_json(root / "evaluation.json", {"event_id": event["event_id"], "mode": "replay",
                "target_array_path": "evaluation-targets.npy", "timestamps_utc": timestamps[4:],
-               "units": reference.units, "purpose": "archived future truth; excluded from inference"})
+               "lead_times_minutes": target_leads, "units": reference.units,
+               "purpose": "short-horizon archived future truth; excluded from inference; not +30/+60 validation"})
     manifest = {"source": "NOAA MRMS public S3", "source_url": BASE_URL, "product": PRODUCT,
                 "region": "CONUS, United States", "mode": "archived_replay", "units": reference.units,
+                "invalid_values": list(PRODUCT_INVALID_VALUES),
                 "observed_timestamps_utc": timestamps[:4], "future_truth_timestamps_utc": timestamps[4:],
                 "objects": source_objects, "crop": grid["mrms_grid"],
                 "files": {name: {"bytes": (root / name).stat().st_size,
@@ -259,7 +291,13 @@ def build_replay(directory: str | Path, budget: int = MAX_DOWNLOAD_BYTES,
             remaining -= expected
             objects.append(record)
             frames.append(decoder(destination, record["timestamp_utc"]))
-        return write_replay(root, frames, objects)
+        return write_replay(
+            root,
+            frames,
+            objects,
+            crop_row_start=DEFAULT_CROP_ROW_START,
+            crop_col_start=DEFAULT_CROP_COL_START,
+        )
     except Exception as exc:
         write_json(root / "manifest.json", {"source": "NOAA MRMS public S3", "product": PRODUCT,
                    "region": "CONUS, United States", "mode": "archived_replay", "budget_bytes": budget,

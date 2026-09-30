@@ -13,6 +13,7 @@ from nowcast.models.optical_flow import (
     OpticalFlowNowcaster,
     OpticalFlowPersistenceRouter,
     OpticalFlowRuntimeError,
+    optical_flow_readiness,
 )
 from nowcast.models.persistence import PersistenceNowcaster, UnsupportedLeadTimeError
 
@@ -138,11 +139,31 @@ class OpticalFlowNowcasterTests(unittest.TestCase):
                     with self.assertRaises(UnsupportedLeadTimeError):
                         self._adapter().predict(self.event, leads)
 
-    def test_nonuniform_cadence_is_rejected(self) -> None:
+    def test_small_source_timestamp_jitter_is_accepted(self) -> None:
+        event = copy.deepcopy(self.event)
+        event["timestamps_utc"][1] = "2026-01-01T00:05:20Z"
+        with self.fake_runtime:
+            forecast = self._adapter().predict(event, [30])
+        self.assertEqual(forecast["forecast_method"], "optical_flow")
+
+    def test_large_nonuniform_cadence_is_rejected(self) -> None:
         event = copy.deepcopy(self.event)
         event["timestamps_utc"][1] = "2026-01-01T00:04:00Z"
-        with self.assertRaisesRegex(ValueError, "uniform observation cadence"):
+        with self.assertRaisesRegex(ValueError, "within 30 seconds"):
             self._adapter().predict(event, [30])
+
+    def test_public_readiness_checks_runtime_and_event(self) -> None:
+        with self.fake_runtime:
+            readiness = optical_flow_readiness(self.event)
+        self.assertTrue(readiness.available)
+        self.assertEqual(readiness.version, "1.21.5-test-double")
+
+        event = copy.deepcopy(self.event)
+        event["timestamps_utc"][1] = "2026-01-01T00:04:00Z"
+        with self.fake_runtime:
+            unavailable = optical_flow_readiness(event)
+        self.assertFalse(unavailable.available)
+        self.assertIn("within 30 seconds", unavailable.reason)
 
     def test_runtime_failure_routes_to_honestly_labelled_persistence(self) -> None:
         optical_flow = self._adapter()

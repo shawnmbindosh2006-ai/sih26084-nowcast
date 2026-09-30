@@ -142,3 +142,22 @@ does not change `docs/CONTRACT.md`. The `optical_flow` method identifier remains
 a proposed coordinated contract extension for Devananda's method-routing work.
 Real skill comparison waits on Harinandana's MRMS observations and separately
 stored future truth; synthetic tests prove plumbing only.
+
+## Final integration audit (2026-09-30)
+
+The optical provider, data replay, method-routing API, and capability-driven
+dashboard were reconciled on `integration/final-vajraview`. The API no longer
+calls private `_load_pysteps()`; it uses public `optical_flow_readiness(event)`
+and advertises optical flow only when both runtime and event prerequisites pass.
+The provider accepts the MRMS timestamp jitter allowed by the loader.
+
+Python 3.11 real-runtime testing used pySTEPS 1.21.5. The corrected archived
+MRMS EventBundle ran through Lucas--Kanade/semilagrangian +30/+60 prediction with
+dBZ preserved and NaN missingness retained. This is execution evidence only:
+the available MRMS truth is +2/+4 minutes, so no +30/+60 skill comparison or
+superiority claim is made.
+
+Final suite: Python 3.11.9 fallback 64 passed / 1 expected skip; Python 3.11.16
+with pySTEPS 1.21.5 65 passed; frontend 17 passed; Vite production build passed.
+The Windows launcher started API/dashboard, served persistence +30/+60, and
+Ctrl+C made both ports unreachable. Unix launcher validation was syntax-only.

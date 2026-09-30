@@ -13,6 +13,13 @@ hazards has storm_intensity_proxy, hail, lightning, downburst and cloudburst. Ea
 ## API
 GET /health; GET /api/v1/capabilities; GET /api/v1/events; POST /api/v1/nowcasts with {event_id,lead_times_minutes,forecast_method?}; GET /api/v1/nowcasts/{run_id}; GET /api/v1/artifacts/{run_id}/{filename}. Omitted `forecast_method` preserves the existing default routing. Explicit selection is accepted only for a method advertised as available; unavailable methods and unsupported leads are rejected with HTTP 422. Capabilities list only methods the server can run for a configured event. For the first demo the POST may return a completed run synchronously; document if a later job queue changes that behaviour.
 
+`GET /api/v1/capabilities` returns `forecast_methods` plus
+`available_pipelines`, keyed by the exact method string. Every advertised
+pipeline supplies `event_id` and `supported_lead_times_minutes`. Consumers must
+not infer a method or horizon that is absent from this mapping. The fixture
+pipeline is always represented; persistence requires a configured EventBundle;
+optical flow additionally requires its public runtime/event readiness check.
+
 ## Python interface
 load_event(path)->EventBundle; predict(event,lead_times)->ForecastBundle; assess_hazards(forecast,event)->hazards. Model inference sees observed data only. Array orientation, native encoding and normalization must be documented and checked against the checkpoint before learned inference.
 

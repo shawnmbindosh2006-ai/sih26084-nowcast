@@ -9,7 +9,7 @@ import numpy as np
 
 from nowcast.data import EventValidationError, load_event
 from nowcast.data.fixture import generate_fixture, write_json
-from nowcast.data.mrms import DecodedFrame, MRMSReplayError, write_replay
+from nowcast.data.mrms import DecodedFrame, MRMSReplayError, _product_validity, write_replay
 from nowcast.data.sevir import fetch, investigate
 
 
@@ -186,7 +186,29 @@ class EventTests(unittest.TestCase):
         self.assertEqual(np.load(event['observed_array_path'])[0, 0, 0, 0], 0.0)
         evaluation = json.loads((output / 'evaluation.json').read_text())
         self.assertEqual(evaluation['timestamps_utc'], ['2020-10-14T00:08:00Z', '2020-10-14T00:10:00Z'])
+        self.assertEqual(evaluation['lead_times_minutes'], [2.0, 4.0])
+        self.assertIn('not +30/+60 validation', evaluation['purpose'])
         self.assertEqual(json.loads((output / 'manifest.json').read_text())['region'], 'CONUS, United States')
+
+    def test_mrms_documented_missing_sentinels_are_invalid(self):
+        values = np.array([[-999.0, -99.0, -4.5, 0.0, 60.0, np.nan]], dtype=np.float32)
+        self.assertEqual(
+            _product_validity(values).tolist(),
+            [[False, False, True, True, True, False]],
+        )
+
+    def test_mrms_replay_rejects_an_all_invalid_observed_crop(self):
+        grid = {'native_spacing_km': None, 'effective_spacing_km': None, 'crs': 'EPSG:4326',
+                'bounds_wgs84': [-100, 30, -99, 31],
+                'mrms_grid': {'i_increment_degrees': 0.01, 'j_increment_degrees': 0.01,
+                              'i_scans_negatively': False, 'j_scans_positively': True,
+                              'latitude_first_degrees': 30, 'longitude_first_degrees': -100}}
+        frames = [DecodedFrame(f'2020-10-14T00:{index * 2:02d}:00Z',
+                               np.full((2, 2), -99.0, dtype=np.float32),
+                               np.zeros((2, 2), dtype=bool), 'dBZ', grid)
+                  for index in range(6)]
+        with self.assertRaisesRegex(MRMSReplayError, 'no valid reflectivity'):
+            write_replay(Path(self.temp.name) / 'invalid-mrms', frames, [{}] * 6, 1, 1)
 
     def test_mrms_replay_rejects_non_monotonic_times(self):
         grid = {'native_spacing_km': None, 'effective_spacing_km': None, 'crs': 'EPSG:4326',

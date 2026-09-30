@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import importlib
 import json
 import os
 import re
@@ -56,16 +55,13 @@ def _persistence_registration() -> tuple[str, dict] | None:
     return public_id, event
 
 
-def _optical_flow_provider_class():
-    """Return Manish's provider only when its implementation and runtime work."""
+def _optical_flow_provider_class(event: dict | None = None):
+    """Return the provider only through its public runtime/event readiness API."""
     try:
-        module = importlib.import_module("nowcast.models.optical_flow")
-        # The provider loads these exact APIs lazily during prediction. Check them
-        # here too so capabilities never advertise an unusable optional method.
-        module._load_pysteps()
-    except (ImportError, ModuleNotFoundError, RuntimeError):
+        from nowcast.models.optical_flow import OpticalFlowNowcaster, optical_flow_readiness
+    except (ImportError, ModuleNotFoundError):
         return None
-    return module.OpticalFlowNowcaster
+    return OpticalFlowNowcaster if optical_flow_readiness(event).available else None
 
 
 def _create_persistence_nowcast(event: dict, public_id: str, lead_times: list[int]) -> dict:
@@ -184,6 +180,9 @@ def capabilities() -> dict:
         "supported_lead_times_minutes": [15],
         "mode": "synthetic", "forecast_method": "fixture",
         "forecast_methods": ["fixture"],
+        "available_pipelines": {
+            "fixture": {"event_id": fixture["event_id"], "supported_lead_times_minutes": [15]},
+        },
         "hazard_availability": {"storm_intensity_proxy": "unavailable", "hail": "unavailable", "lightning": "unavailable", "downburst": "unavailable", "cloudburst": "unavailable"},
         "sources": fixture.get("sources", []), "source_freshness": "unknown; metadata-only fixture",
         "missing_sensors": ["radar", "satellite", "lightning"],
@@ -205,7 +204,7 @@ def capabilities() -> dict:
                 "persistence": {"event_id": public_id, "supported_lead_times_minutes": sorted(PERSISTENCE_LEADS)},
             },
         })
-        optical_flow_class = _optical_flow_provider_class()
+        optical_flow_class = _optical_flow_provider_class(event)
         if optical_flow_class is not None:
             result["forecast_methods"].append("optical_flow")
             result["available_pipelines"]["optical_flow"] = {
@@ -235,7 +234,7 @@ def create_nowcast(request: NowcastRequest) -> dict:
     if request.forecast_method == "optical_flow":
         if not registration:
             raise HTTPException(status_code=422, detail="Optical flow requires a configured EventBundle.")
-        provider_class = _optical_flow_provider_class()
+        provider_class = _optical_flow_provider_class(registration[1])
         if provider_class is None:
             raise HTTPException(status_code=422, detail="Optical-flow provider is unavailable on this server.")
         if request.event_id not in {persistence_id, source_id}:
@@ -286,6 +285,8 @@ def create_nowcast(request: NowcastRequest) -> dict:
         return _create_persistence_nowcast(registration[1], persistence_id, request.lead_times_minutes)
     if request.forecast_method == "persistence":
         raise HTTPException(status_code=422, detail="Persistence requires a configured EventBundle and +30/+60 lead.")
+    if request.forecast_method == "fixture" and request.event_id != fixture.get("event_id"):
+        raise HTTPException(status_code=422, detail="Fixture method is available only for the fixture event.")
     if request.event_id != fixture.get("event_id"):
         raise HTTPException(status_code=404, detail="Unknown event_id.")
     unsupported = sorted(set(request.lead_times_minutes) - ALLOWED_LEADS)

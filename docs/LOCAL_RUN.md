@@ -1,4 +1,4 @@
-# Local persistence model and API run
+# Local VajraVIEW baseline run
 
 Python 3.11 is the project target. Run commands from the repository root in an
 isolated virtual environment; do not install packages globally.
@@ -27,6 +27,18 @@ The generated forecast is synthetic persistence with null geography and
 unavailable hazards. Running against `fixtures/demo-event.json` must fail with
 the expected metadata-only fixture error.
 
+## One-command Windows demo
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/start-demo.ps1
+```
+
+The launcher builds the dashboard and serves the dependency-free persistence
+fallback at `http://127.0.0.1:8000` with the UI at
+`http://127.0.0.1:5173`. Ctrl+C stops both process trees. This pip environment
+does not advertise optical flow because Windows PyPI installation requires a
+compiler that is not assumed on a clean demo laptop.
+
 ## Integrated EventBundle persistence API
 
 Generate a fresh Harinandana fixture path; the generator will not overwrite an
@@ -45,7 +57,7 @@ $env:NOWCAST_RUNS_DIR = Join-Path (Get-Location) 'runs/api'
 Invoke-RestMethod http://127.0.0.1:8000/health
 Invoke-RestMethod http://127.0.0.1:8000/api/v1/capabilities
 Invoke-RestMethod http://127.0.0.1:8000/api/v1/events
-$body = '{"event_id":"persistence:synthetic-demo-001","lead_times_minutes":[30,60]}'
+$body = '{"event_id":"persistence:synthetic-demo-001","lead_times_minutes":[30,60],"forecast_method":"persistence"}'
 $bundle = Invoke-RestMethod -Method Post `
   -Uri http://127.0.0.1:8000/api/v1/nowcasts `
   -ContentType 'application/json' -Body $body
@@ -57,6 +69,29 @@ plane. Prefix each relative URL with `http://127.0.0.1:8000` to retrieve it.
 `GET /api/v1/nowcasts/{run_id}` returns the saved bundle. The original
 `synthetic-demo-001` fixture remains a separate +15 `forecast_method=fixture`
 path.
+
+## Optional optical-flow runtime
+
+Use the pinned conda-forge environment because its Windows pySTEPS package is
+prebuilt:
+
+```powershell
+conda env create -f environment-optical-flow.yml
+conda activate vajraview-optical-flow
+$env:PYTHONPATH = (Resolve-Path src).Path
+python -m nowcast.data generate runs/optical-event
+$env:NOWCAST_EVENT_BUNDLE_PATH = (Resolve-Path runs/optical-event/event.json).Path
+$env:NOWCAST_RUNS_DIR = Join-Path (Get-Location) 'runs/optical-api'
+python -m uvicorn nowcast.api.app:app --host 127.0.0.1 --port 8000
+```
+
+When the public runtime/event readiness check succeeds, capabilities adds
+`optical_flow` with +30/+60. An explicit optical-flow request never silently
+falls back to persistence. Runtime failures return HTTP 503; unavailable or
+unsupported selections return HTTP 422.
+
+In a second shell, run `npm ci` and `npm run dev` under `web/`. The dashboard
+discovers methods/events from the API and sends `forecast_method` explicitly.
 
 ## Full baseline verification
 
@@ -92,6 +127,6 @@ PYTHONPATH=src .venv/bin/python -m pytest -q \
   tests/data tests/models tests/evaluation tests/api tests/hazards
 ```
 
-The final cross-platform launcher is tracked separately in PR #9 and is not
-integrated by these commands. No real data, learned model, calibrated hazard,
+The Unix launcher is syntax-checked but must not be described as Linux-tested
+unless it is actually executed on Linux. No learned model, calibrated hazard,
 rainfall-rate conversion or Indian forecast skill is provided.

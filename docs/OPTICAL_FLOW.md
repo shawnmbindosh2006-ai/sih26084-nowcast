@@ -48,6 +48,12 @@ labelled `optical_flow`. It preserves each channel's variable and unit labels;
 there is no dBZ-to-mm/h conversion. Invalid, non-finite and out-of-domain
 pixels are stored as `NaN`, while a valid numeric zero remains zero.
 
+API capability discovery uses the public
+`optical_flow_readiness(event=None)` probe. With an EventBundle it validates
+both the optional runtime and input prerequisites without writing artifacts.
+Source timestamps may vary by at most 30 seconds from their median positive
+cadence, matching the EventBundle loader's archived-source tolerance.
+
 `OpticalFlowPersistenceRouter` catches only optical-flow runtime failures and
 then calls the existing persistence adapter. A fallback result remains labelled
 `persistence` and includes the routing reason in its warnings. Invalid events
@@ -70,8 +76,7 @@ threshold, valid count, CSI, MAE and RMSE.
 - Hail, lightning, downburst and cloudburst remain unavailable with null
   probability.
 - Unknown CRS and bounds stay unknown.
-- The current ForecastBundle v1 documentation does not yet enumerate
-  `optical_flow`; backend/frontend exposure needs a coordinated contract change
-  and is intentionally deferred to Devananda's capability-routing work.
-- Real persistence-versus-optical-flow skill numbers wait for Harinandana's
-  independently sourced MRMS replay and separately stored +30/+60 truth.
+- ForecastBundle v1 enumerates `optical_flow`, and the API advertises it only
+  when the public readiness probe succeeds for the configured EventBundle.
+- The bounded MRMS replay proves real decoding and provider execution, but its
+  separate truth is only about +2/+4 minutes. No +30/+60 skill result exists.

@@ -18,6 +18,9 @@ def test_health_capabilities_and_event_inventory():
     caps = client.get("/api/v1/capabilities").json()
     assert caps["supported_lead_times_minutes"] == [15]
     assert caps["forecast_methods"] == ["fixture"]
+    assert caps["available_pipelines"] == {
+        "fixture": {"event_id": "synthetic-demo-001", "supported_lead_times_minutes": [15]}
+    }
     assert caps["missing_sensors"] == ["radar", "satellite", "lightning"]
     assert client.get("/api/v1/events").json()["events"][0]["event_id"] == "synthetic-demo-001"
 
@@ -54,6 +57,7 @@ def test_rejects_bad_event_leads_and_extra_fields():
     assert client.post("/api/v1/nowcasts", json={"event_id": "synthetic-demo-001", "lead_times_minutes": [15], "path": "C:/secret"}).status_code == 422
     assert client.post("/api/v1/nowcasts", json={"event_id": "synthetic-demo-001", "lead_times_minutes": [15], "forecast_method": "optical_flow"}).status_code == 422
     assert client.post("/api/v1/nowcasts", json={"event_id": "synthetic-demo-001", "lead_times_minutes": [15], "forecast_method": "earthformer"}).status_code == 422
+    assert client.post("/api/v1/nowcasts", json={"event_id": "missing", "lead_times_minutes": [15], "forecast_method": "fixture"}).status_code == 422
 
 
 def test_artifact_paths_are_confined():
@@ -70,7 +74,7 @@ def test_event_bundle_persistence_api_and_artifacts(tmp_path, monkeypatch):
     manifest = generate_fixture(tmp_path / "event")
     monkeypatch.setenv("NOWCAST_EVENT_BUNDLE_PATH", str(manifest))
     monkeypatch.setattr("nowcast.api.app.RUNS_DIR", (tmp_path / "runs").resolve())
-    monkeypatch.setattr(api_module, "_optical_flow_provider_class", lambda: None)
+    monkeypatch.setattr(api_module, "_optical_flow_provider_class", lambda event=None: None)
     caps = client.get("/api/v1/capabilities").json()
     assert caps["supported_lead_times_minutes"] == [30, 60]
     assert caps["forecast_methods"] == ["fixture", "persistence"]
@@ -155,7 +159,7 @@ def test_capabilities_advertise_registered_optical_flow_and_route_artifacts(tmp_
                 }], "hazards": hazards, "warnings": [],
             }
 
-    monkeypatch.setattr(api_module, "_optical_flow_provider_class", lambda: StubOpticalFlow)
+    monkeypatch.setattr(api_module, "_optical_flow_provider_class", lambda event=None: StubOpticalFlow)
     capabilities = client.get("/api/v1/capabilities").json()
     assert capabilities["forecast_methods"] == ["fixture", "persistence", "optical_flow"]
     assert capabilities["available_pipelines"]["optical_flow"] == {
@@ -177,3 +181,42 @@ def test_capabilities_advertise_registered_optical_flow_and_route_artifacts(tmp_
     assert client.get(frame["image_url"]).headers["content-type"] == "image/png"
     assert client.get(frame["numeric_array_url"]).headers["content-type"] == "application/octet-stream"
     assert client.get(f"/api/v1/artifacts/{bundle['run_id']}/../../secret.npy").status_code == 404
+
+
+def test_explicit_fixture_and_optical_runtime_failure_semantics(tmp_path, monkeypatch):
+    from nowcast.data.fixture import generate_fixture
+
+    manifest = generate_fixture(tmp_path / "event")
+    monkeypatch.setattr(api_module, "PERSISTENCE_EVENT_PATH", manifest)
+    monkeypatch.setattr(api_module, "RUNS_DIR", (tmp_path / "runs").resolve())
+
+    explicit_fixture = client.post("/api/v1/nowcasts", json={
+        "event_id": "synthetic-demo-001", "lead_times_minutes": [15], "forecast_method": "fixture"
+    })
+    assert explicit_fixture.status_code == 201
+    assert explicit_fixture.json()["forecast_method"] == "fixture"
+
+    class FailingOpticalFlow:
+        def __init__(self, artifact_root, supported_lead_times_minutes):
+            pass
+
+        def predict(self, event, lead_times):
+            raise RuntimeError("controlled runtime failure")
+
+    monkeypatch.setattr(
+        api_module, "_optical_flow_provider_class", lambda event=None: FailingOpticalFlow
+    )
+    unavailable = client.post("/api/v1/nowcasts", json={
+        "event_id": "persistence:synthetic-demo-001",
+        "lead_times_minutes": [30],
+        "forecast_method": "optical_flow",
+    })
+    assert unavailable.status_code == 503
+    assert "controlled runtime failure" in unavailable.json()["detail"]
+
+    unsupported = client.post("/api/v1/nowcasts", json={
+        "event_id": "persistence:synthetic-demo-001",
+        "lead_times_minutes": [90],
+        "forecast_method": "optical_flow",
+    })
+    assert unsupported.status_code == 422

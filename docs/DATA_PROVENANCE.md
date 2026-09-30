@@ -65,12 +65,19 @@ sequence. It retains the product's `dBZ` reflectivity unit. It is explicitly US
 archived/replay evidence, not an Indian feed or a forecast-validation claim.
 
 The command reads genuine regular-latitude/longitude GRIB metadata and crops a
-native 128x128 panel without resampling. It records the exact selected source
+fixed native 128x128 panel without resampling. The crop coordinates are recorded
+in configuration and were selected from the first observed frame, not future
+truth. It records the exact selected source
 objects and output checksums in its generated manifest. Four increasing UTC
 source timestamps are written to `event.json`; two later timestamps and values
 are written only to `evaluation.json` and `evaluation-targets.npy`. Invalid
 pixels are false in `quality-mask.npy`, so their stored zero placeholder has no
 physical meaning.
+
+For `MergedReflectivityQCComposite_00.50`, documented `-99` missing and `-999`
+no-coverage values are explicitly invalidated even when ecCodes does not expose
+them through the GRIB `missingValue` key. The two separate targets are only about
++2 and +4 minutes after the final observation; they are not +30/+60 validation.
 
 The selected files have source timestamps near the nominal two-minute interval,
 with actual seconds retained from their filenames. The loader accepts up to 30

@@ -81,6 +81,18 @@ review, then run the API route against its real pySTEPS runtime and the same
 EventBundle used for persistence. Compare outputs against separate evaluation
 targets before making skill claims.
 
+Final integration replaced the private `_load_pysteps()` readiness call with
+the provider's public runtime/event probe and added the fixture pipeline to
+`available_pipelines` even when no EventBundle is configured. Python 3.11 tests
+now cover explicit fixture selection, unavailable/unsupported optical flow,
+runtime HTTP 503 behavior, and real pySTEPS routing. Replay execution is not a
+forecast-skill claim.
+
+Final Python 3.11 validation passed 64 tests in the dependency-free runtime
+(one expected real-pySTEPS skip) and 65 tests in the pySTEPS 1.21.5 runtime.
+Actual HTTP smoke returned 200 for saved bundles and PNG/NumPy artifacts,
+201 for persistence/optical-flow +30/+60, and 422 for +90/+180/+360.
+
 ## Manish takeover reconciliation (2026-09-30)
 
 PR #5 advanced to `e191bbba6f2ed4e6087a282a2f94d2e65891276d` while the API takeover branch was being prepared. Its commits are merged into `fix/devananda-api-integration` without rewriting Devananda's history. The takeover keeps the validated +30/+60 persistence path and original +15 fixture separate, uses a distinct public persistence event alias for dashboard discovery, preserves PR #5's `NOWCAST_EVENT_BUNDLE_PATH` and `numeric_url` compatibility, and adds registered-artifact confinement and deeper mask tests. PR #7 is a draft into `develop`; neither PR is merged. PRs #2 and #3 remain dependencies.

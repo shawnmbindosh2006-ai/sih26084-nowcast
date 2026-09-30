@@ -7,7 +7,15 @@
   "default_download_budget_bytes": 10000000,
   "observed_frame_count": 4,
   "future_truth_frame_count": 2,
-  "crop": "128x128 native-grid pixels centred in the source grid; no resampling",
+  "crop": {
+    "height": 128,
+    "width": 128,
+    "row_start": 906,
+    "column_start": 4455,
+    "selection": "fixed from the first observed frame only; contains a reflectivity feature; no future-target selection and no resampling"
+  },
+  "invalid_product_values": [-99.0, -999.0],
+  "truth_scope": "the two separate targets are approximately +2 and +4 minutes; they are not +30/+60 validation",
   "selected_keys": [
     "CONUS/MergedReflectivityQCComposite_00.50/20201014/MRMS_MergedReflectivityQCComposite_00.50_20201014-000022.grib2.gz",
     "CONUS/MergedReflectivityQCComposite_00.50/20201014/MRMS_MergedReflectivityQCComposite_00.50_20201014-000239.grib2.gz",

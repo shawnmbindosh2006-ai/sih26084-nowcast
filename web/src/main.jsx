@@ -72,6 +72,9 @@ export function App({ initialBundle = fixture, apiBase = API_BASE }) {
   const methods = discovery ? Object.keys(discovery.availablePipelines) : [];
   const pipeline = discovery?.availablePipelines[selectedMethod] || null;
   const events = discovery?.events || [];
+  const eventOptions = pipeline
+    ? events.filter((item) => item.event_id === pipeline.event_id)
+    : [];
 
   function selectMethod(method) {
     const next = discovery.availablePipelines[method];
@@ -136,8 +139,8 @@ export function App({ initialBundle = fixture, apiBase = API_BASE }) {
               </label>
               <label>Event
                 <select aria-label="Forecast event" value={selectedEvent} onChange={(event) => setSelectedEvent(event.target.value)}>
-                  {!events.some((item) => item.event_id === pipeline?.event_id) && pipeline && <option value={pipeline.event_id}>{pipeline.event_id}</option>}
-                  {events.map((item) => <option value={item.event_id} key={item.event_id}>{item.event_id}</option>)}
+                  {!eventOptions.length && pipeline && <option value={pipeline.event_id}>{pipeline.event_id}</option>}
+                  {eventOptions.map((item) => <option value={item.event_id} key={item.event_id}>{item.event_id}</option>)}
                 </select>
               </label>
               <label>Lead time
@@ -177,7 +180,7 @@ export function App({ initialBundle = fixture, apiBase = API_BASE }) {
               </MapContainer>
             ) : (
               <div className="neutral-map">
-                {imageUrl && !artifactFailed ? <img className="forecast-image" src={imageUrl} alt="Backend forecast frame" onError={() => setArtifactFailed(true)} /> : (
+                {imageUrl && !artifactFailed ? <div className="forecast-canvas"><img className="forecast-image" src={imageUrl} alt="Backend forecast frame" onError={() => setArtifactFailed(true)} /><p>Geography unknown · image canvas only; no map placement is inferred.</p></div> : (
                   <div><strong>{artifactFailed ? "Forecast artifact unavailable" : "Geography unknown"}</strong><p>{artifactFailed ? "The API image could not be loaded; no substitute is shown." : "No valid WGS84 bounds were supplied. Map placement is not invented."}</p></div>
                 )}
               </div>

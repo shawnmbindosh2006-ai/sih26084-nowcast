@@ -2,6 +2,8 @@
 
 React + Vite + Leaflet dashboard for Anamika's dashboard workstream.
 
+Requires Node.js 20.19+ or 22.12+ (the Vite 8 engine requirement).
+
 ## Run locally
 
     npm ci
