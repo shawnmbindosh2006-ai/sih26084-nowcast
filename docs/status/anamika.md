@@ -57,7 +57,7 @@ Contract boundary:
 - The original PR #13 rendered ForecastBundle v1 saved runs but did not implement capability-driven method selection. Final integration preserves its rendering/safety helpers and adds the shared capabilities/events/POST request flow.
 
 Checks:
-- npm ci --cache C:\Users\anami\Documents\Codex\2026-09-30\vajraview-parallel-upgrade-sprint-master-plan\work\npm-cache — passed (67 packages installed; npm reported 2 dependency advisories: 1 moderate and 1 high).
+- `npm ci` with an isolated local cache — passed (67 packages installed; npm reported 2 dependency advisories: 1 moderate and 1 high).
 - npm test — passed, 10 tests.
 - npm run check — passed.
 - npm run build — passed.

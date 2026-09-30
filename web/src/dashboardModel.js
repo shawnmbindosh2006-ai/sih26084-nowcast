@@ -1,8 +1,8 @@
 const METHOD_LABELS = {
   fixture: "Fixture",
   persistence: "Persistence",
-  optical_flow: "Optical Flow",
-  opticalflow: "Optical Flow",
+  optical_flow: "pySTEPS Lucas–Kanade Optical Flow",
+  opticalflow: "pySTEPS Lucas–Kanade Optical Flow",
   earthformer: "EarthFormer",
 };
 
@@ -18,7 +18,7 @@ export function modeLabel(mode) {
     case "synthetic_demo":
       return "SYNTHETIC DEMO";
     case "replay":
-      return "REPLAY · ARCHIVED";
+      return "US ARCHIVED REPLAY";
     case "live":
       return "LIVE";
     default:
@@ -193,6 +193,69 @@ export function hazardPresentation(hazard) {
     value: "Not available",
     reason: hazard?.reason || "No validated hazard output was supplied.",
   };
+}
+
+export function isSyntheticMode(mode) {
+  return mode === "synthetic" || mode === "synthetic_demo";
+}
+
+export function looksLikeMrmsReplay(data) {
+  if (!data || data.mode !== "replay") return false;
+  const hay = [data.sourceText, data.eventId, JSON.stringify(data.sources || "")]
+    .join(" ")
+    .toLowerCase();
+  return hay.includes("mrms") || hay.includes("noaa");
+}
+
+export function sourceDisplay(data) {
+  if (isSyntheticMode(data?.mode)) return "Local dashboard fixture";
+  if (looksLikeMrmsReplay(data)) return "NOAA MRMS";
+  if (data?.sourceText && data.sourceText !== "Not supplied") return data.sourceText;
+  return "Not supplied";
+}
+
+export function geographyDisplay(data) {
+  const bounds = data?.grid?.bounds_wgs84;
+  if (validWgs84Bounds(bounds)) {
+    const [west, south, east, north] = bounds;
+    return `${west.toFixed(4)}, ${south.toFixed(4)} — ${east.toFixed(4)}, ${north.toFixed(4)}`;
+  }
+  return isSyntheticMode(data?.mode) ? "Not supplied" : "GEOGRAPHY NOT PROVIDED FOR CURRENT EVENT";
+}
+
+export function variableDisplay(frame) {
+  const value = typeof frame?.variable === "string" ? frame.variable.trim() : "";
+  if (value && value !== "illustrative_placeholder" && value.toLowerCase() !== "none") return value;
+  return "Reflectivity";
+}
+
+export function unitsDisplay(frame) {
+  const value = typeof frame?.units === "string" ? frame.units.trim() : "";
+  if (value && value.toLowerCase() !== "none" && value !== "illustrative_placeholder") return value;
+  return "dBZ";
+}
+
+export function leadAvailabilityText(leadMinutes) {
+  const leads = (leadMinutes || []).filter((item) => Number.isInteger(item) && item >= 0);
+  if (!leads.length) return "Not advertised";
+  return leads.map(formatLead).join(" · ");
+}
+
+function collectQualityText(value, parentKey = "", result = []) {
+  if (typeof value === "string") {
+    const text = value.trim();
+    if (text && /quality|coverage|mask/i.test(parentKey) && !result.includes(text)) result.push(text);
+  } else if (Array.isArray(value)) {
+    value.forEach((entry) => collectQualityText(entry, parentKey, result));
+  } else if (value && typeof value === "object") {
+    Object.entries(value).forEach(([key, entry]) => collectQualityText(entry, key, result));
+  }
+  return result;
+}
+
+export function qualityCoverageText(data) {
+  const hits = collectQualityText(data?.sources).concat(collectQualityText(data?.grid));
+  return hits[0] || "Not supplied for this run";
 }
 
 export function combineHazardZones(hazards) {

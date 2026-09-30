@@ -9,6 +9,13 @@ dist/
 .env
 .env.*
 !.env.example
+*.env.local
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+secrets.json
 /data/
 checkpoints/
 runs/
@@ -22,4 +29,10 @@ runs/
 *.pth
 *.mp4
 *.zip
+*.log
+coverage/
+.coverage
+.idea/
+.vscode/
+Thumbs.db
 .DS_Store

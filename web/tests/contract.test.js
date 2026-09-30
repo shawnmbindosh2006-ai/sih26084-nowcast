@@ -119,7 +119,7 @@ test('dashboard renders a contract-valid API-shaped response',async t=>{
   assert.match(html,/Fixture/);
   assert.match(html,/\+15 min/);
   assert.match(html,/Not available/);
-  assert.match(html,/Geography unknown/);
+  assert.match(html,/GEOGRAPHY NOT PROVIDED FOR CURRENT EVENT/);
   assert.match(html,/illustrative-frame\.png/);
   const withUnsupported={...apiBundle,frames:[...apiBundle.frames,{lead_minutes:360,valid_time_utc:null}]};
   const filteredHtml=renderBundle(withUnsupported);
@@ -128,5 +128,5 @@ test('dashboard renders a contract-valid API-shaped response',async t=>{
   assert.match(persistenceHtml,/REPLAY/);
   assert.match(persistenceHtml,/Persistence/);
   const mappedHtml=renderBundle({...apiBundle,grid:{...apiBundle.grid,bounds_wgs84:[70,10,80,20]}});
-  assert.doesNotMatch(mappedHtml,/Geography unknown/);
+  assert.doesNotMatch(mappedHtml,/GEOGRAPHY NOT PROVIDED FOR CURRENT EVENT/);
 });

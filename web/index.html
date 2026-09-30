@@ -1,1 +1,47 @@
-<!doctype html><html><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><title>SIH26084 Nowcast Dashboard</title></head><body><div id="root"></div><script type="module" src="/src/main.jsx"></script></body></html>
+<!doctype html>
+<html class="dark" lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VajraVIEW</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              outline: { DEFAULT: "#889393", variant: "#3f4949" },
+              primary: { DEFAULT: "#87d3d6", container: "#56a3a6", fixed: "#a3f0f3" },
+              "on-primary": "#003738",
+              "on-primary-container": "#003637",
+              "on-primary-fixed": "#002021",
+              secondary: { DEFAULT: "#ffb3ad", container: "#90181b", fixed: "#ffdad6" },
+              tertiary: { DEFAULT: "#f0c11d", container: "#d0a600", fixed: "#ffe08c" },
+              "on-surface": "#c8e7f7",
+              "on-surface-variant": "#bec9c9",
+              surface: {
+                DEFAULT: "#00161e",
+                dim: "#00161e",
+                bright: "#1e3d49",
+                variant: "#193944",
+                container: "#00232e",
+                "container-low": "#001f29",
+                "container-high": "#0c2e39",
+                "container-highest": "#193944",
+                "container-lowest": "#001017",
+              },
+            },
+          },
+        },
+      };
+    </script>
+  </head>
+  <body class="bg-[#00161e] text-[#c8e7f7] select-none overflow-x-hidden min-h-screen">
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

@@ -13,7 +13,10 @@ from nowcast.api.app import ARTIFACT_NAME, app
 client = TestClient(app)
 
 
-def test_health_capabilities_and_event_inventory():
+def test_health_capabilities_and_event_inventory(monkeypatch):
+    monkeypatch.delenv("NOWCAST_EVENT_BUNDLE_PATH", raising=False)
+    monkeypatch.delenv("NOWCAST_EVENT_PATH", raising=False)
+    monkeypatch.setattr(api_module, "PERSISTENCE_EVENT_PATH", None)
     assert client.get("/health").json()["status"] == "ok"
     caps = client.get("/api/v1/capabilities").json()
     assert caps["supported_lead_times_minutes"] == [15]
@@ -23,6 +26,17 @@ def test_health_capabilities_and_event_inventory():
     }
     assert caps["missing_sensors"] == ["radar", "satellite", "lightning"]
     assert client.get("/api/v1/events").json()["events"][0]["event_id"] == "synthetic-demo-001"
+
+
+def test_invalid_configured_event_bundle_is_reported(monkeypatch, tmp_path):
+    monkeypatch.setenv("NOWCAST_EVENT_BUNDLE_PATH", str(tmp_path / "missing-event.json"))
+    monkeypatch.delenv("NOWCAST_EVENT_PATH", raising=False)
+    monkeypatch.setattr(api_module, "PERSISTENCE_EVENT_PATH", None)
+
+    response = client.get("/api/v1/capabilities")
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "The configured persistence EventBundle is unavailable or invalid."
 
 
 def test_create_get_and_artifact_are_safe(tmp_path, monkeypatch):

@@ -10,6 +10,8 @@ import {
   normalizeDashboardData,
   resolveArtifactUrl,
   sourceSummary,
+  sourceDisplay,
+  qualityCoverageText,
   validWgs84Bounds,
 } from "./dashboardModel.js";
 
@@ -34,9 +36,9 @@ test("normalizes ForecastBundle v1 and keeps only returned supported frames", ()
 
 test("maps labels from the response's actual method and mode", () => {
   assert.equal(methodLabel("persistence"), "Persistence");
-  assert.equal(methodLabel("optical_flow"), "Optical Flow");
+  assert.equal(methodLabel("optical_flow"), "pySTEPS Lucas–Kanade Optical Flow");
   assert.equal(methodLabel("experimental-x"), "experimental-x");
-  assert.equal(modeLabel("replay"), "REPLAY · ARCHIVED");
+  assert.equal(modeLabel("replay"), "US ARCHIVED REPLAY");
   assert.equal(modeLabel("synthetic_demo"), "SYNTHETIC DEMO");
   assert.equal(modeLabel("api"), "MODE UNAVAILABLE");
 });
@@ -113,4 +115,27 @@ test("summarizes source metadata without exposing local paths", () => {
     sourceSummary({ provider: "NOAA", product: "MRMS", path: "D:\\private\\data.grib2" }),
     "NOAA · MRMS",
   );
+});
+
+test("synthetic fixture display does not invent MRMS or quality coverage", () => {
+  const synthetic = normalizeDashboardData({
+    mode: "synthetic",
+    forecast_method: "fixture",
+    frames: [{ lead_minutes: 0, variable: "illustrative_placeholder", units: "none" }],
+    sources: [{ provenance: "Illustrative metadata only" }],
+  });
+  assert.equal(sourceDisplay(synthetic), "Local dashboard fixture");
+  assert.equal(qualityCoverageText(synthetic), "Not supplied for this run");
+});
+
+test("replay with NOAA/MRMS provenance uses archived MRMS labels", () => {
+  const replay = normalizeDashboardData({
+    mode: "replay",
+    forecast_method: "optical_flow",
+    frames: [{ lead_minutes: 30 }],
+    sources: [{ provider: "NOAA", product: "MRMS" }],
+    grid: { quality_mask_path: "mask.npy", bounds_wgs84: [-97, 32, -96, 33] },
+  });
+  assert.equal(sourceDisplay(replay), "NOAA MRMS");
+  assert.equal(qualityCoverageText(replay), "mask.npy");
 });

@@ -32,7 +32,7 @@ Exact commands executed (Windows PowerShell, repository root):
 
 ```powershell
 $env:PYTHONPATH = Join-Path (Get-Location) 'src'
-$dataPython = 'C:\Users\asros\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe'
+$dataPython = '<python-3.11-or-3.12-executable>'
 & $dataPython -m nowcast.data generate runs/data-fixture
 & $dataPython -m unittest discover -s tests/data -v
 & $dataPython -m nowcast.data.sevir runs/sevir-public-probe --download

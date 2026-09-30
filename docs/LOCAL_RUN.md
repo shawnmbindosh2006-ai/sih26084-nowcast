@@ -41,14 +41,28 @@ compiler that is not assumed on a clean demo laptop.
 
 ## Integrated EventBundle persistence API
 
-Generate a fresh Harinandana fixture path; the generator will not overwrite an
-existing fixture:
+Use the same validated demo EventBundle path as the Windows launcher. Generate
+it only when it does not already exist; the generator intentionally will not
+overwrite an existing fixture:
 
 ```powershell
-.\.venv\Scripts\python.exe -m nowcast.data generate runs/integration-fixture
-$env:NOWCAST_EVENT_BUNDLE_PATH = (Resolve-Path runs/integration-fixture/event.json).Path
+$env:PYTHONPATH = (Resolve-Path src).Path
+if (-not (Test-Path runs/demo-event/event.json)) {
+  .\.venv\Scripts\python.exe -m nowcast.data generate runs/demo-event
+}
+.\.venv\Scripts\python.exe -m nowcast.data validate runs/demo-event/event.json
+$env:NOWCAST_EVENT_BUNDLE_PATH = (Resolve-Path runs/demo-event/event.json).Path
 $env:NOWCAST_RUNS_DIR = Join-Path (Get-Location) 'runs/api'
 .\.venv\Scripts\python.exe -m uvicorn nowcast.api.app:app --host 127.0.0.1 --port 8000
+```
+
+An explicitly configured missing or invalid EventBundle is a startup
+misconfiguration and `/api/v1/capabilities` returns HTTP 503. To run the
+illustrative fixture-only path, remove both EventBundle variables before
+starting the API:
+
+```powershell
+Remove-Item Env:NOWCAST_EVENT_BUNDLE_PATH, Env:NOWCAST_EVENT_PATH -ErrorAction SilentlyContinue
 ```
 
 `NOWCAST_EVENT_PATH` is also accepted. In another PowerShell window:
