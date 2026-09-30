@@ -20,9 +20,11 @@ if ($WebPort -ne 5173) { throw 'The API currently allows dashboard origin port 5
 Push-Location $root
 try {
     if (-not (Test-Path -LiteralPath $venvPython)) {
-        $version = & $Python -c 'import sys; print("%d.%d" % sys.version_info[:2])'
-        if ($LASTEXITCODE -ne 0 -or $version -notin @('3.11', '3.12')) {
-            throw "Python 3.11 or 3.12 is required; got $version. Pass -Python with its executable path."
+        $versionOutput = & $Python --version 2>&1
+        $versionExitCode = $LASTEXITCODE
+        $versionText = ($versionOutput | Select-Object -First 1).ToString().Trim()
+        if ($versionExitCode -ne 0 -or $versionText -notmatch '^Python 3\.(11|12)(?:\.|$)') {
+            throw "Python 3.11 or 3.12 is required; got $versionText. Pass -Python with its executable path."
         }
         & $Python -m venv .venv
         if ($LASTEXITCODE -ne 0) { throw 'Could not create Python virtual environment.' }
