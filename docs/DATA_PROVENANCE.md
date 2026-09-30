@@ -15,9 +15,9 @@ use an image panel. There is no resampling or normalization.
 `quality-mask.npy` is boolean `[12,32,32,1]`: True means valid and False means
 missing/invalid. The first cell in each frame is deliberately missing with a
 zero placeholder. Never interpret that placeholder as an observation. The loader
-does not impute. Consumers must honor the mask; mask semantics need peer review
-because contract v1 does not specify polarity. Manish's current persistence
-adapter validates mask shape but does not propagate missingness to outputs.
+does not impute. Consumers honor the repository convention that True means valid.
+The persistence and optical-flow adapters propagate invalid cells as `NaN` while
+preserving valid numeric zeros.
 
 Four future synthetic frames (01:00 through 01:15 UTC) live in
 `evaluation-targets.npy`, referenced only by `evaluation.json`. Inference JSON
@@ -56,3 +56,29 @@ Unknown geometry stays null even for US events. A future reader must preserve
 catalog projection, pixel orientation and timing offsets before deriving bounds;
 never transplant a US event to India. No downloaded real event is currently an
 inference-ready EventBundle.
+
+## NOAA MRMS archived replay
+
+`nowcast.data.mrms` is a separate, bounded replay path using NOAA's public
+`noaa-mrms-pds` bucket and a fixed six-file CONUS `MergedReflectivityQCComposite`
+sequence. It retains the product's `dBZ` reflectivity unit. It is explicitly US
+archived/replay evidence, not an Indian feed or a forecast-validation claim.
+
+The command reads genuine regular-latitude/longitude GRIB metadata and crops a
+fixed native 128x128 panel without resampling. The crop coordinates are recorded
+in configuration and were selected from the first observed frame, not future
+truth. It records the exact selected source
+objects and output checksums in its generated manifest. Four increasing UTC
+source timestamps are written to `event.json`; two later timestamps and values
+are written only to `evaluation.json` and `evaluation-targets.npy`. Invalid
+pixels are false in `quality-mask.npy`, so their stored zero placeholder has no
+physical meaning.
+
+For `MergedReflectivityQCComposite_00.50`, documented `-99` missing and `-999`
+no-coverage values are explicitly invalidated even when ecCodes does not expose
+them through the GRIB `missingValue` key. The two separate targets are only about
++2 and +4 minutes after the final observation; they are not +30/+60 validation.
+
+The selected files have source timestamps near the nominal two-minute interval,
+with actual seconds retained from their filenames. The loader accepts up to 30
+seconds of inferred-cadence jitter and rejects larger discontinuities.

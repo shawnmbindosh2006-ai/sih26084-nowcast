@@ -48,6 +48,51 @@ Result: **7 passed, 1 warning in 0.70s** on Python 3.12.14, NumPy 2.1.3, FastAPI
 
 Next: Manish reviews PR #5's demonstrated integration; Shawn reviews the end-to-end result before any merge or next phase.
 
+## Devananda method-routing handoff (2026-09-30)
+
+Branch: `feature/devananda-method-api`, based on `origin/develop` at
+`e4660e49612ff86694f27e2f56a305299ed0664e`. The checkout preserves four unrelated
+untracked report artifacts; they are not part of this change. No optical-flow
+provider is present on this develop checkpoint. Manish's separate
+`feature/manish-optical-flow` branch was inspected; its `OpticalFlowNowcaster`
+interface is wired lazily and will only appear in capabilities when its module
+and pySTEPS APIs load.
+
+Implemented capability-driven method selection for fixture, persistence, and
+optional optical flow. Omitted method behavior is preserved. Explicit optical
+flow is rejected with HTTP 422 unless an EventBundle and usable provider are
+available; unsupported optical-flow leads are rejected. The provider's NPY
+frames use the existing PNG renderer and confined artifact route. The ForecastBundle
+method enum in `docs/CONTRACT.md` now documents optical flow as deterministic
+motion/advection, not learned inference. Unsupported hazards remain unavailable
+with null probability.
+
+Exact checks on this checkout: `$env:PYTHONPATH='src'; pytest -q tests/api tests/hazards`
+— 10 passed, one Starlette TestClient/HTTPX deprecation warning;
+`git diff --check` — passed. The optical-flow route test uses a controlled test
+provider to verify routing and artifacts. It does not claim pySTEPS inference.
+No external weather data or checkpoint was used.
+
+Not verified: actual pySTEPS optical-flow inference or replay skill, browser
+integration, Python 3.11 execution, push, and PR creation. The API implementation
+is ready for review on the feature branch; no merge to `main` or `develop` is
+claimed. Manish's next step is to merge/reconcile the inspected provider through
+review, then run the API route against its real pySTEPS runtime and the same
+EventBundle used for persistence. Compare outputs against separate evaluation
+targets before making skill claims.
+
+Final integration replaced the private `_load_pysteps()` readiness call with
+the provider's public runtime/event probe and added the fixture pipeline to
+`available_pipelines` even when no EventBundle is configured. Python 3.11 tests
+now cover explicit fixture selection, unavailable/unsupported optical flow,
+runtime HTTP 503 behavior, and real pySTEPS routing. Replay execution is not a
+forecast-skill claim.
+
+Final Python 3.11 validation passed 64 tests in the dependency-free runtime
+(one expected real-pySTEPS skip) and 65 tests in the pySTEPS 1.21.5 runtime.
+Actual HTTP smoke returned 200 for saved bundles and PNG/NumPy artifacts,
+201 for persistence/optical-flow +30/+60, and 422 for +90/+180/+360.
+
 ## Manish takeover reconciliation (2026-09-30)
 
 PR #5 advanced to `e191bbba6f2ed4e6087a282a2f94d2e65891276d` while the API takeover branch was being prepared. Its commits are merged into `fix/devananda-api-integration` without rewriting Devananda's history. The takeover keeps the validated +30/+60 persistence path and original +15 fixture separate, uses a distinct public persistence event alias for dashboard discovery, preserves PR #5's `NOWCAST_EVENT_BUNDLE_PATH` and `numeric_url` compatibility, and adds registered-artifact confinement and deeper mask tests. PR #7 is a draft into `develop`; neither PR is merged. PRs #2 and #3 remain dependencies.

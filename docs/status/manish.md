@@ -114,3 +114,50 @@ transparent invalid PNG pixels, opaque valid-zero pixels and traversal rejection
 
 Request peer review of PR #7. It is technically ready for merge consideration
 after that review, but must not be merged automatically.
+
+## Optical-flow upgrade branch (2026-09-30)
+
+Branch `feature/manish-optical-flow` starts from accepted fallback baseline
+`e4660e4`. It adds a separate `OpticalFlowNowcaster` using pySTEPS 1.21.5
+Lucas--Kanade motion and semilagrangian advection for +30/+60 only. Persistence
+is unchanged and remains the control and honest runtime fallback.
+
+The provider reads the validated observed EventBundle boundary `[T,H,W,C]`
+only. It preserves channel names/units, UTC valid times, grid/source provenance,
+True=valid quality-mask semantics, invalid pixels as `NaN`, and valid numeric
+zeros. Evaluation targets are not accepted by `predict()`.
+
+Windows preflight found that PyPI distributes pySTEPS 1.21.5 as source and pip
+requires MSVC 14+, which is absent on the test laptop. The verified path is the
+official prebuilt conda-forge package in an isolated Python 3.11 environment;
+the frozen pip persistence requirements were intentionally not changed. Setup,
+interfaces and scientific limitations are recorded in `docs/OPTICAL_FLOW.md`.
+
+Evaluation preparation adds a mask-aware named-method comparison for CSI, MAE
+and RMSE. It records event, method, lead, threshold and valid sample counts.
+No FSS was added, and no threshold was selected as evidence of superiority.
+
+This branch does not expose optical flow through FastAPI or the dashboard and
+does not change `docs/CONTRACT.md`. The `optical_flow` method identifier remains
+a proposed coordinated contract extension for Devananda's method-routing work.
+Real skill comparison waits on Harinandana's MRMS observations and separately
+stored future truth; synthetic tests prove plumbing only.
+
+## Final integration audit (2026-09-30)
+
+The optical provider, data replay, method-routing API, and capability-driven
+dashboard were reconciled on `integration/final-vajraview`. The API no longer
+calls private `_load_pysteps()`; it uses public `optical_flow_readiness(event)`
+and advertises optical flow only when both runtime and event prerequisites pass.
+The provider accepts the MRMS timestamp jitter allowed by the loader.
+
+Python 3.11 real-runtime testing used pySTEPS 1.21.5. The corrected archived
+MRMS EventBundle ran through Lucas--Kanade/semilagrangian +30/+60 prediction with
+dBZ preserved and NaN missingness retained. This is execution evidence only:
+the available MRMS truth is +2/+4 minutes, so no +30/+60 skill comparison or
+superiority claim is made.
+
+Final suite: Python 3.11.9 fallback 64 passed / 1 expected skip; Python 3.11.16
+with pySTEPS 1.21.5 65 passed; frontend 17 passed; Vite production build passed.
+The Windows launcher started API/dashboard, served persistence +30/+60, and
+Ctrl+C made both ports unreachable. Unix launcher validation was syntax-only.

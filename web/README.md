@@ -1,20 +1,17 @@
 # SIH26084 Nowcast Dashboard
 
-React + Vite + Leaflet dashboard for Anamika's `feature/anamika-dashboard` workstream.
+React + Vite + Leaflet dashboard for Anamika's dashboard workstream.
 
-## Run
-```bash
-npm ci
-npm run dev
-```
+Requires Node.js 20.19+ or 22.12+ (the Vite 8 engine requirement).
 
-Optional API integration:
-```bash
-copy .env.example .env
-# set VITE_API_BASE_URL to Devananda's documented API base
-```
+## Run locally
 
-The dashboard reads `GET /api/v1/capabilities` and `GET /api/v1/events`, then requests only advertised leads with `POST /api/v1/nowcasts`. It renders the returned ForecastBundle v1 `frames` and artifact URLs. The current API fixture advertises +15 minutes; the local dashboard fixture is synthetic metadata only and has no weather image or verified geography.
+    npm ci
+    npm run dev
+
+The dashboard reads `GET /api/v1/capabilities` and `GET /api/v1/events`, builds its method and lead selectors only from `available_pipelines`, and sends the selected `forecast_method` explicitly to `POST /api/v1/nowcasts`. It renders the returned ForecastBundle v1 `frames` and API artifact URLs. Optical flow is hidden when the backend does not advertise a callable runtime.
+
+Copy `.env.example` to `.env` when the API is not at `http://localhost:8000`. No saved run ID is required: the dashboard discovers events and creates the selected forecast through the documented API.
 
 Production check:
 ```bash
@@ -23,4 +20,4 @@ npm run check
 npm test
 ```
 
-If the API is absent/unreachable, the UI remains usable with `src/fixture.json` and visibly identifies itself as a synthetic local demo. The API route/render tests use `tests/api-bundle.json`; they do not establish forecast skill or live backend availability.
+If the API is absent or unreachable, the UI remains usable with `src/fixture.json` and visibly identifies itself as a synthetic local demo. It never substitutes invented geography, hazards, or images. The fixtures and UI tests establish contract plumbing only, not forecast skill.
