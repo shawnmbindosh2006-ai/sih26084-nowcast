@@ -1,26 +1,22 @@
 {
   "schema_version": "1.0",
-  "run_id": "local-synthetic-demo",
+  "run_id": "0123456789abcdef0123456789abcdef",
   "event_id": "synthetic-demo-001",
   "mode": "synthetic",
   "forecast_method": "fixture",
-  "issued_at_utc": "2026-09-29T14:05:00Z",
-  "event_time_utc": "2026-09-29T14:00:00Z",
-  "supported_lead_times_minutes": [0, 30, 60],
-  "sources": [{"id": "local-dashboard-fixture", "availability": "synthetic", "provenance": "Illustrative metadata only; no weather observations or forecast skill"}],
+  "issued_at_utc": "2026-01-01T00:01:00Z",
+  "event_time_utc": "2026-01-01T00:00:00Z",
+  "supported_lead_times_minutes": [15],
+  "sources": [{"id": "fixture", "availability": "synthetic", "provenance": "Illustrative API placeholder, not observations"}],
   "model": {"id": "illustrative-fixture", "version": "1", "checkpoint_sha256": null},
   "grid": {"native_spacing_km": null, "effective_spacing_km": null, "crs": null, "bounds_wgs84": null},
-  "frames": [
-    {"lead_minutes": 0, "valid_time_utc": "2026-09-29T14:00:00Z", "image_url": null, "variable": "illustrative_placeholder", "units": "none"},
-    {"lead_minutes": 30, "valid_time_utc": "2026-09-29T14:30:00Z", "image_url": null, "variable": "illustrative_placeholder", "units": "none"},
-    {"lead_minutes": 60, "valid_time_utc": "2026-09-29T15:00:00Z", "image_url": null, "variable": "illustrative_placeholder", "units": "none"}
-  ],
+  "frames": [{"lead_minutes": 15, "valid_time_utc": "2026-01-01T00:15:00Z", "image_url": "/api/v1/artifacts/0123456789abcdef0123456789abcdef/illustrative-frame.png", "variable": "illustrative_placeholder", "units": "none"}],
   "hazards": {
-    "storm_intensity_proxy": {"status": "unavailable", "probability": null, "units": null, "method": null, "reason": "No VIL observation or validated proxy is available.", "zones": {"type": "FeatureCollection", "features": []}, "estimated_arrival_utc": null, "timing_uncertainty_minutes": null},
+    "storm_intensity_proxy": {"status": "unavailable", "probability": null, "units": null, "method": null, "reason": "No observation array is available.", "zones": {"type": "FeatureCollection", "features": []}, "estimated_arrival_utc": null, "timing_uncertainty_minutes": null},
     "hail": {"status": "unavailable", "probability": null, "units": null, "method": null, "reason": "No validated assessment is available.", "zones": {"type": "FeatureCollection", "features": []}, "estimated_arrival_utc": null, "timing_uncertainty_minutes": null},
     "lightning": {"status": "unavailable", "probability": null, "units": null, "method": null, "reason": "No validated assessment is available.", "zones": {"type": "FeatureCollection", "features": []}, "estimated_arrival_utc": null, "timing_uncertainty_minutes": null},
     "downburst": {"status": "unavailable", "probability": null, "units": null, "method": null, "reason": "No validated assessment is available.", "zones": {"type": "FeatureCollection", "features": []}, "estimated_arrival_utc": null, "timing_uncertainty_minutes": null},
     "cloudburst": {"status": "unavailable", "probability": null, "units": null, "method": null, "reason": "No validated assessment is available.", "zones": {"type": "FeatureCollection", "features": []}, "estimated_arrival_utc": null, "timing_uncertainty_minutes": null}
   },
-  "warnings": ["Synthetic dashboard metadata only; no weather image, observed field, or forecast skill is supplied.", "Unknown geographic bounds; no map placement is available."]
+  "warnings": ["Illustrative API placeholder only; no forecast skill or weather field is supplied."]
 }

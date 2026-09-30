@@ -1,110 +1,224 @@
-import React, {useEffect, useMemo, useState} from 'react';
-import {createRoot} from 'react-dom/client';
-import {MapContainer, TileLayer, CircleMarker, GeoJSON, useMap} from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
-import './styles.css';
-import fixture from './fixture.json';
+import React, { useEffect, useMemo, useState } from "react";
+import { createRoot } from "react-dom/client";
+import { GeoJSON, ImageOverlay, MapContainer, TileLayer, useMap } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
+import "./styles.css";
+import fixture from "./fixture.json";
+import { chooseDefaultMethod, discoverForecastOptions, requestNowcast, supportedFrames } from "./contract.js";
+import {
+  combineHazardZones,
+  formatLead,
+  hazardPresentation,
+  methodLabel,
+  modeLabel,
+  normalizeDashboardData,
+  resolveArtifactUrl,
+  validWgs84Bounds,
+} from "./dashboardModel.js";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+const HAZARD_NAMES = ["storm_intensity_proxy", "hail", "lightning", "downburst", "cloudburst"];
 
-function utcNow(){ return Date.now(); }
-function fmtUtc(iso){ if(!iso) return 'Unavailable'; return new Date(iso).toISOString().replace('T',' ').replace('.000Z','Z'); }
-function fmtIst(iso){ if(!iso) return 'Unavailable'; return new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',dateStyle:'medium',timeStyle:'short'}).format(new Date(iso))+' IST'; }
-function countdown(arrival, clock){
-  if(!arrival) return null;
-  const d = new Date(arrival).getTime() - clock;
-  if(!Number.isFinite(d) || d < 0) return null;
-  const total = Math.floor(d/1000), h=Math.floor(total/3600), m=Math.floor((total%3600)/60), s=total%60;
-  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+function fmtUtc(value) {
+  if (!value) return "Unavailable";
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.getTime()) ? parsed.toISOString().replace("T", " ").replace(".000Z", "Z") : "Unavailable";
 }
 
-function MapResize(){ const map=useMap(); useEffect(()=>{setTimeout(()=>map.invalidateSize(),50)},[map]); return null; }
-
-function App(){
-  const [bundle,setBundle]=useState(fixture);
-  const [mode,setMode]=useState('fixture');
-  const [lead,setLead]=useState(0);
-  const [playing,setPlaying]=useState(false);
-  const [replayClock,setReplayClock]=useState(new Date(fixture.replay?.clock_utc || fixture.issue_time_utc).getTime());
-  const [apiState,setApiState]=useState(API_BASE ? 'loading' : 'offline');
-  const [error,setError]=useState('');
-
-  useEffect(()=>{
-    if(!API_BASE) return;
-    const ctrl=new AbortController();
-    fetch(`${API_BASE.replace(/\/$/,'')}/forecast`,{signal:ctrl.signal})
-      .then(r=>{if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json()})
-      .then(data=>{setBundle(data);setMode('api');setApiState('online');setError('')})
-      .catch(e=>{if(e.name!=='AbortError'){setApiState('offline');setError('API unavailable — showing local fixture replay.')}});
-    return ()=>ctrl.abort();
-  },[]);
-
-  useEffect(()=>{
-    if(!playing) return;
-    const id=setInterval(()=>setLead(v=>{
-      const next=v+1;
-      if(next>=bundle.leads.length){setPlaying(false);return v;}
-      return next;
-    }),1000);
-    return ()=>clearInterval(id);
-  },[playing,bundle.leads.length]);
-
-  const selected=bundle.leads[lead] || bundle.leads[0];
-  const hazards=selected?.hazards || {};
-  const clock=mode==='fixture' ? replayClock : utcNow();
-  const arrival=countdown(selected?.arrival_estimate_utc,clock);
-  const stale=selected?.input?.stale === true;
-  const validBounds=Array.isArray(selected?.bounds?.bbox) && selected.bounds.bbox.length===4;
-  const center=validBounds ? [(selected.bounds.bbox[1]+selected.bounds.bbox[3])/2,(selected.bounds.bbox[0]+selected.bounds.bbox[2])/2] : [20,78];
-  const unsupported=['hail','lightning','downburst','cloudburst'];
-  const mapGeo=selected?.hazard_geojson || null;
-  const leadOptions=bundle.leads.map((x,i)=>({i,label:x.lead_minutes===0?'Observed':`+${x.lead_minutes} min`,supported:x.supported!==false,reason:x.unsupported_reason}));
-
-  return <div className="app">
-    <header className="topbar">
-      <div><div className="eyebrow">MoES / NCMRWF · SIH26084</div><h1>Convective Nowcast Dashboard</h1></div>
-      <div className="mode-badge"><span className="dot"/> {mode==='api'?'MODEL/API MODE':'SYNTHETIC DEMO'}</div>
-    </header>
-    <main>
-      <section className="status-row">
-        <div className="status-card"><b>Mode</b><span>{mode==='api'?'API / integrated':'Synthetic fixture / replay'}</span></div>
-        <div className="status-card"><b>Event time</b><span>{fmtUtc(bundle.event_time_utc)}</span></div>
-        <div className="status-card"><b>Issue time</b><span>{fmtUtc(bundle.issue_time_utc)}</span></div>
-        <div className="status-card"><b>Replay clock</b><span>{fmtUtc(new Date(clock).toISOString())}</span></div>
-      </section>
-      {error && <div className="banner warning">{error}</div>}
-      {stale && <div className="banner danger">Stale input: this frame is retained for replay/demo only. Hazard countdowns are not presented as live.</div>}
-
-      <section className="grid">
-        <div className="card map-card">
-          <div className="card-head"><div><h2>Observed / forecast scene</h2><p>{bundle.region?.name || 'Unknown region'} · {bundle.grid?.native_km ? `${bundle.grid.native_km} km native` : 'native spacing unknown'}{bundle.grid?.effective_km ? ` · ${bundle.grid.effective_km} km effective` : ''}</p></div><span className="pill">{leadOptions[lead]?.label}</span></div>
-          {validBounds ? <MapContainer center={center} zoom={6} scrollWheelZoom className="map"><MapResize/><TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"/>{mapGeo && <GeoJSON data={mapGeo}/>} {(selected.points||[]).map((p,i)=><CircleMarker key={i} center={[p.lat,p.lon]} radius={6}></CircleMarker>)}</MapContainer> : <div className="neutral-map"><div><strong>Neutral coordinate frame</strong><p>Geography is unavailable or unverified. The dashboard will not invent an Indian overlay.</p><div className="fake-grid">{Array.from({length:36}).map((_,i)=><i key={i}/>)}</div></div></div>}
-          <div className="map-caption">Map overlay is shown only when valid coordinates/bounds exist. Synthetic geography remains illustrative.</div>
-        </div>
-
-        <aside className="card hazard-card"><div className="card-head"><div><h2>Hazard status</h2><p>Only supplied/calibrated outputs are shown as probabilities.</p></div></div>
-          {unsupported.map(k=><Hazard key={k} name={k} data={hazards[k]}/>) }
-          <div className="proxy"><div><b>VIL proxy</b><span>Not rainfall (mm/h)</span></div><strong>{selected.vil_proxy?.value ?? '—'}</strong><small>{selected.vil_proxy?.method || 'Meaning unavailable'}</small></div>
-          <div className="quality"><b>Input quality</b><span>{selected.input?.quality || 'Not supplied'}</span><small>{selected.input?.quality_method || 'No calibrated confidence method supplied.'}</small></div>
-        </aside>
-      </section>
-
-
-      <section className="card controls">
-        <div className="control-line"><div><h2>Supported lead</h2><p>Unsupported horizons stay disabled with a reason.</p></div><div className="lead-buttons">{leadOptions.map(o=><button key={o.i} disabled={!o.supported} className={o.i===lead?'active':''} onClick={()=>setLead(o.i)}>{o.label}{!o.supported && <small>disabled</small>}</button>)}</div></div>
-        <div className="slider-row"><button className="play" onClick={()=>setPlaying(v=>!v)}>{playing?'Pause':'Play'}</button><input type="range" min="0" max={Math.max(bundle.leads.length-1,0)} value={lead} onChange={e=>{setLead(Number(e.target.value));setPlaying(false)}}/><span>{selected?.valid_time_utc ? fmtUtc(selected.valid_time_utc) : 'Unavailable'}</span></div>
-        {mode==='fixture' && <div className="replay-row"><label>Replay clock</label><input type="range" min={new Date(bundle.replay.start_utc).getTime()} max={new Date(bundle.replay.end_utc).getTime()} value={replayClock} onChange={e=>setReplayClock(Number(e.target.value))}/><span>{fmtUtc(new Date(replayClock).toISOString())}</span></div>}
-      </section>
-
-      <section className="bottom-grid">
-        <div className="card"><h2>Arrival countdown</h2><div className="countdown">{arrival || 'Unavailable'}</div><p>{selected?.arrival_estimate_utc ? `Estimate: ${fmtUtc(selected.arrival_estimate_utc)} · ${fmtIst(selected.arrival_estimate_utc)}` : 'No valid estimated arrival supplied.'}</p></div>
-        <div className="card"><h2>Data provenance</h2><ul className="meta"><li><b>Dataset:</b> {bundle.provenance?.dataset || 'Not supplied'}</li><li><b>Region:</b> {bundle.region?.name || 'Unknown'}</li><li><b>Source status:</b> {apiState==='online'?'API online':'Local fixture'}</li><li><b>Claims:</b> {bundle.provenance?.claims || 'Illustrative demo only'}</li></ul></div>
-      </section>
-    </main>
-    <footer>Dashboard owned by Anamika · feature/anamika-dashboard · No live hazard claims are made by this fixture.</footer>
-  </div>
+function MapResize() {
+  const map = useMap();
+  useEffect(() => {
+    const timer = setTimeout(() => map.invalidateSize(), 50);
+    return () => clearTimeout(timer);
+  }, [map]);
+  return null;
 }
 
-function Hazard({name,data}){ const available=data?.status==='available' && data?.probability!=null; return <div className="hazard"><div><b>{name[0].toUpperCase()+name.slice(1)}</b><span>{data?.status || 'unavailable'}</span></div><strong>{available ? `${Math.round(data.probability*100)}%` : 'Not available'}</strong></div> }
+export function App({ initialBundle = fixture, apiBase = API_BASE }) {
+  const [bundle, setBundle] = useState(initialBundle);
+  const [discovery, setDiscovery] = useState(null);
+  const [selectedMethod, setSelectedMethod] = useState("");
+  const [selectedEvent, setSelectedEvent] = useState("");
+  const [selectedLead, setSelectedLead] = useState(0);
+  const [frameIndex, setFrameIndex] = useState(0);
+  const [apiState, setApiState] = useState(apiBase ? "discovering" : "fixture");
+  const [error, setError] = useState("");
+  const [artifactFailed, setArtifactFailed] = useState(false);
 
-createRoot(document.getElementById('root')).render(<App/>);
+  useEffect(() => {
+    if (!apiBase) return undefined;
+    const controller = new AbortController();
+    discoverForecastOptions(apiBase, controller.signal)
+      .then((result) => {
+        if (controller.signal.aborted) return;
+        const method = chooseDefaultMethod(result);
+        const pipeline = result.availablePipelines[method];
+        setDiscovery(result);
+        setSelectedMethod(method);
+        setSelectedEvent(pipeline.event_id);
+        setSelectedLead(pipeline.supported_lead_times_minutes[0]);
+        setApiState("ready");
+        setError("");
+      })
+      .catch((reason) => {
+        if (!controller.signal.aborted) {
+          setApiState("fixture");
+          setError(`API discovery failed (${reason.message}). Showing the local synthetic fixture.`);
+        }
+      });
+    return () => controller.abort();
+  }, [apiBase]);
+
+  const methods = discovery ? Object.keys(discovery.availablePipelines) : [];
+  const pipeline = discovery?.availablePipelines[selectedMethod] || null;
+  const events = discovery?.events || [];
+  const eventOptions = pipeline
+    ? events.filter((item) => item.event_id === pipeline.event_id)
+    : [];
+
+  function selectMethod(method) {
+    const next = discovery.availablePipelines[method];
+    setSelectedMethod(method);
+    setSelectedEvent(next.event_id);
+    setSelectedLead(next.supported_lead_times_minutes[0]);
+    setError("");
+  }
+
+  async function generateForecast(event) {
+    event.preventDefault();
+    if (!pipeline) return;
+    setApiState("loading");
+    setError("");
+    try {
+      const response = await requestNowcast(apiBase, {
+        eventId: selectedEvent,
+        leadTimesMinutes: [selectedLead],
+        forecastMethod: selectedMethod,
+      });
+      setBundle(response);
+      setFrameIndex(0);
+      setArtifactFailed(false);
+      setApiState("online");
+    } catch (reason) {
+      setApiState("error");
+      setError(`Forecast request failed (${reason.message}). No substitute forecast was generated.`);
+    }
+  }
+
+  const view = useMemo(() => normalizeDashboardData(bundle), [bundle]);
+  const frames = useMemo(() => supportedFrames(bundle), [bundle]);
+  const selectedFrame = frames[frameIndex] || frames[0] || null;
+  const bounds = view.grid?.bounds_wgs84;
+  const hasBounds = validWgs84Bounds(bounds);
+  const mapBounds = hasBounds ? [[bounds[1], bounds[0]], [bounds[3], bounds[2]]] : null;
+  const center = hasBounds ? [(bounds[1] + bounds[3]) / 2, (bounds[0] + bounds[2]) / 2] : null;
+  const imageUrl = resolveArtifactUrl(selectedFrame?.image_url, apiBase);
+  const numericUrl = resolveArtifactUrl(selectedFrame?.numeric_array_url || selectedFrame?.numeric_url, apiBase);
+  const zones = combineHazardZones(view.hazards);
+
+  return (
+    <div className="app">
+      <header className="topbar">
+        <div><div className="eyebrow">SIH26084 · honest prototype</div><h1>VajraVIEW Nowcasting</h1></div>
+        <div className="mode-badge"><span className="dot" />{modeLabel(view.mode)}</div>
+      </header>
+
+      <main>
+        <section className="card method-panel" aria-label="Forecast controls">
+          <div className="card-head">
+            <div><h2>Forecast request</h2><p>Only backend-advertised methods and lead times are selectable.</p></div>
+            <span className="pill">{apiState === "online" ? "API result" : apiState === "fixture" ? "Local fixture" : apiState}</span>
+          </div>
+          {error && <div className="banner warning" role="alert">{error}</div>}
+          {discovery ? (
+            <form className="request-grid" onSubmit={generateForecast}>
+              <label>Method
+                <select aria-label="Forecast method" value={selectedMethod} onChange={(event) => selectMethod(event.target.value)}>
+                  {methods.map((method) => <option value={method} key={method}>{methodLabel(method)}</option>)}
+                </select>
+              </label>
+              <label>Event
+                <select aria-label="Forecast event" value={selectedEvent} onChange={(event) => setSelectedEvent(event.target.value)}>
+                  {!eventOptions.length && pipeline && <option value={pipeline.event_id}>{pipeline.event_id}</option>}
+                  {eventOptions.map((item) => <option value={item.event_id} key={item.event_id}>{item.event_id}</option>)}
+                </select>
+              </label>
+              <label>Lead time
+                <select aria-label="Forecast lead time" value={selectedLead} onChange={(event) => setSelectedLead(Number(event.target.value))}>
+                  {pipeline.supported_lead_times_minutes.map((lead) => <option value={lead} key={lead}>{formatLead(lead)}</option>)}
+                </select>
+              </label>
+              <button className="play" type="submit" disabled={apiState === "loading"}>{apiState === "loading" ? "Generating…" : "Generate forecast"}</button>
+            </form>
+          ) : (
+            <div className="banner info" role="status">{apiState === "discovering" ? "Discovering backend capabilities…" : "API unavailable. Synthetic fixture metadata only."}</div>
+          )}
+        </section>
+
+        <section className="status-row">
+          <StatusCard title="Mode" value={modeLabel(view.mode)} />
+          <StatusCard title="Actual method" value={methodLabel(view.method)} />
+          <StatusCard title="Event" value={view.eventId} />
+          <StatusCard title="Issued UTC" value={fmtUtc(view.issueTimeUtc)} />
+          <StatusCard title="Valid UTC" value={fmtUtc(selectedFrame?.valid_time_utc)} />
+        </section>
+
+        {view.warnings.map((warning, index) => <div className="banner warning" key={index}>{typeof warning === "string" ? warning : JSON.stringify(warning)}</div>)}
+
+        <section className="grid">
+          <div className="card map-card">
+            <div className="card-head">
+              <div><h2>Forecast frame</h2><p>{selectedFrame ? `${selectedFrame.variable || "Variable unavailable"} · ${selectedFrame.units || "units unavailable"}` : "No frame returned"}</p></div>
+              <span className="pill">{selectedFrame ? formatLead(selectedFrame.lead_minutes) : "Unavailable"}</span>
+            </div>
+            {hasBounds ? (
+              <MapContainer center={center} zoom={6} scrollWheelZoom className="map">
+                <MapResize />
+                <TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                {imageUrl && !artifactFailed && <ImageOverlay url={imageUrl} bounds={mapBounds} opacity={0.82} eventHandlers={{ error: () => setArtifactFailed(true) }} />}
+                {zones && <GeoJSON data={zones} />}
+              </MapContainer>
+            ) : (
+              <div className="neutral-map">
+                {imageUrl && !artifactFailed ? <div className="forecast-canvas"><img className="forecast-image" src={imageUrl} alt="Backend forecast frame" onError={() => setArtifactFailed(true)} /><p>Geography unknown · image canvas only; no map placement is inferred.</p></div> : (
+                  <div><strong>{artifactFailed ? "Forecast artifact unavailable" : "Geography unknown"}</strong><p>{artifactFailed ? "The API image could not be loaded; no substitute is shown." : "No valid WGS84 bounds were supplied. Map placement is not invented."}</p></div>
+                )}
+              </div>
+            )}
+            <div className="frame-meta">
+              <span><b>Artifact:</b> {imageUrl ? "API-served PNG" : "Unavailable"}</span>
+              {numericUrl && <a href={numericUrl} target="_blank" rel="noreferrer">Download numeric array</a>}
+            </div>
+            <div className="lead-buttons">
+              {frames.map((frame, index) => <button className={index === frameIndex ? "active" : ""} onClick={() => { setFrameIndex(index); setArtifactFailed(false); }} key={frame.lead_minutes}>{formatLead(frame.lead_minutes)}</button>)}
+            </div>
+          </div>
+
+          <aside className="card hazard-card">
+            <div className="card-head"><div><h2>Hazard evidence</h2><p>Null never means safe. Probabilities appear only when validated.</p></div></div>
+            {HAZARD_NAMES.map((name) => <Hazard key={name} name={name} data={view.hazards[name]} />)}
+          </aside>
+        </section>
+
+        <section className="bottom-grid">
+          <div className="card"><h2>Provenance</h2><p>{view.sourceText}</p><p>Run: {view.runId || "Not supplied"}</p></div>
+          <div className="card"><h2>Scientific boundary</h2><p>Persistence and optical flow are deterministic baselines, not learned AI. Synthetic/replay results do not establish Indian forecast skill.</p></div>
+        </section>
+      </main>
+      <footer>VajraVIEW · capability-driven ForecastBundle v1 dashboard · no unsupported hazard claims</footer>
+    </div>
+  );
+}
+
+function StatusCard({ title, value }) {
+  return <div className="status-card"><b>{title}</b><span>{value || "Not supplied"}</span></div>;
+}
+
+function Hazard({ name, data }) {
+  const presentation = hazardPresentation(data);
+  return <div className="hazard"><div><b>{name.replaceAll("_", " ")}</b><span>{presentation.status}</span><small>{presentation.reason}</small></div><strong>{presentation.value}</strong></div>;
+}
+
+if (typeof document !== "undefined" && document.getElementById("root")) {
+  createRoot(document.getElementById("root")).render(<App />);
+}

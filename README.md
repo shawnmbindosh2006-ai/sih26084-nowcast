@@ -16,7 +16,7 @@ Develop a short-range storm forecasting workflow that combines meteorological ob
 
 ## Current status
 
-The repository contains an initial project scaffold and technical interfaces. Application implementation and validation are in progress. The first demonstration is intended to use small synthetic fixtures or archived event replay before integrating additional data sources.
+The integrated prototype provides a reproducible synthetic EventBundle, CPU persistence at +30/+60, an optional pySTEPS 1.21.5 Lucas--Kanade/semilagrangian baseline, FastAPI ForecastBundle v1 routes, confined NumPy/PNG artifacts, and a capability-driven React dashboard. A bounded US NOAA MRMS archived replay can be built separately; it is not Indian validation and its committed selection has only short-horizon (+2/+4 minute) future truth.
 
 ## Scientific scope
 
@@ -26,4 +26,12 @@ SEVIR-based development does not establish performance over India. Radar VIL is 
 
 ## Local setup
 
-Installation and run instructions will be added with the runnable prototype, including application dependencies, sample data requirements and optional model setup.
+Python 3.11 and Node.js 20.19+ (or 22.12+) are required. The stable Windows persistence demo installs its own environment and starts both services:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/start-demo.ps1
+```
+
+Open `http://127.0.0.1:5173` and stop both processes with Ctrl+C. For manual setup, API examples, the optional conda-based pySTEPS runtime, and the bounded MRMS replay, see [local run instructions](docs/LOCAL_RUN.md), [optical-flow notes](docs/OPTICAL_FLOW.md), and [data access notes](docs/DATA_ACCESS.md).
+
+The dashboard only displays methods and leads advertised by the live API. Persistence and optical flow are deterministic baselines, not learned AI forecasts; hazards remain unavailable/null unless independently validated.
