@@ -15,9 +15,9 @@ use an image panel. There is no resampling or normalization.
 `quality-mask.npy` is boolean `[12,32,32,1]`: True means valid and False means
 missing/invalid. The first cell in each frame is deliberately missing with a
 zero placeholder. Never interpret that placeholder as an observation. The loader
-does not impute. Consumers must honor the mask; mask semantics need peer review
-because contract v1 does not specify polarity. Manish's current persistence
-adapter validates mask shape but does not propagate missingness to outputs.
+does not impute. Consumers honor the repository convention that True means valid.
+The persistence and optical-flow adapters propagate invalid cells as `NaN` while
+preserving valid numeric zeros.
 
 Four future synthetic frames (01:00 through 01:15 UTC) live in
 `evaluation-targets.npy`, referenced only by `evaluation.json`. Inference JSON
